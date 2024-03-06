@@ -8,7 +8,7 @@ description:         Add CSP headers to Yesod apps. This helps reduce exposure t
 license:             MIT
 license-file:        LICENSE
 author:              Bob Long
-maintainer:          robertjflong@gmail.com
+maintainer:          Pascal Wittmann <mail@pascal-wittmann.de>
 category:            Web
 build-type:          Simple
 cabal-version:       >=1.10
@@ -16,7 +16,7 @@ extra-source-files:  ./CHANGELOG.md
 
 source-repository head
   type: git
-  location: https://github.com/bobjflong/yesod-csp.git
+  location: https://github.com/pSub/yesod-csp.git
 
 library
   exposed-modules:     Yesod.Csp
