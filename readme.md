@@ -19,7 +19,7 @@ This is a work in progress, not battle-hardened! Use with caution and confirm yo
 
 #### Examples
 
-[This module](https://github.com/bobjflong/yesod-csp/blob/master/src/Yesod/Csp/Example.hs) contains a host of runnable example Yesod handlers which set various CSP headers.
+[This module](https://github.com/pSub/yesod-csp/blob/master/src/Yesod/Csp/Example.hs) contains a host of runnable example Yesod handlers which set various CSP headers.
 
 #### Template Haskell support
 
