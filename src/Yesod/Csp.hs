@@ -160,6 +160,7 @@ data Directive = DefaultSrc SourceList
                  -- | CSP level 2 directives
                  | FrameAncestors SourceList
                  | ChildSrc SourceList
+                 | FormAction SourceList
                  deriving (Eq, Show, Data, Typeable)
 
 
@@ -188,3 +189,4 @@ textDirective (Sandbox s) = mconcat ["sandbox ", T.unwords . fmap textSandbox $ 
         textSandbox AllowTopNavigation = "allow-top-navigation"
 textDirective (FrameAncestors x) =  w "frame-ancestors" x
 textDirective (ChildSrc x) = w "child-src" x
+textDirective (FormAction x) = w "form-action" x

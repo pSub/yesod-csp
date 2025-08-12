@@ -107,6 +107,7 @@ withSourceList = defaultSrc
                  <|> frameSrc
                  <|> frameAncestors
                  <|> childSrc
+                 <|> formAction
   where defaultSrc = d "default-src" DefaultSrc
         scriptSrc = d "script-src" ScriptSrc
         styleSrc = d "style-src" StyleSrc
@@ -118,6 +119,7 @@ withSourceList = defaultSrc
         frameSrc = d "frame-src" FrameSrc
         frameAncestors = d "frame-ancestors" FrameAncestors
         childSrc = d "child-src" ChildSrc
+        formAction = d "form-action" FormAction
         d x y = string x >> s >> slist >>= mkWithSource y
         slist = sepBy1 source (char ' ')
         s = spaces
