@@ -154,10 +154,14 @@ data Directive = DefaultSrc SourceList
                  | ObjectSrc SourceList
                  | MediaSrc SourceList
                  | FrameSrc SourceList
-                 | FrameAncestors SourceList
                  -- | Applies a sandbox to the result. <http://content-security-policy.com/ See here> for more info.
                  | Sandbox [SandboxOptions]
-                 | ReportUri EscapedURI deriving (Eq, Show, Data, Typeable)
+                 | ReportUri EscapedURI
+                 -- | CSP level 2 directives
+                 | FrameAncestors SourceList
+                 | ChildSrc SourceList
+                 deriving (Eq, Show, Data, Typeable)
+
 
 -- | Configuration options for the sandbox.
 data SandboxOptions = AllowForms
@@ -175,7 +179,6 @@ textDirective (FontSrc x) =  w "font-src" x
 textDirective (ObjectSrc x) =  w "object-src" x
 textDirective (MediaSrc x) =  w "media-src" x
 textDirective (FrameSrc x) =  w "frame-src" x
-textDirective (FrameAncestors x) =  w "frame-ancestors" x
 textDirective (ReportUri t) = mconcat ["report-uri ", (T.pack . show) t]
 textDirective (Sandbox []) = "sandbox"
 textDirective (Sandbox s) = mconcat ["sandbox ", T.unwords . fmap textSandbox $ s]
@@ -183,3 +186,5 @@ textDirective (Sandbox s) = mconcat ["sandbox ", T.unwords . fmap textSandbox $ 
         textSandbox AllowScripts = "allow-scripts"
         textSandbox AllowSameOrigin = "allow-same-origin"
         textSandbox AllowTopNavigation = "allow-top-navigation"
+textDirective (FrameAncestors x) =  w "frame-ancestors" x
+textDirective (ChildSrc x) = w "child-src" x
