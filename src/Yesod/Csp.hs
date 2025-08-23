@@ -161,6 +161,7 @@ data Directive = DefaultSrc SourceList
                  | FrameAncestors SourceList
                  | ChildSrc SourceList
                  | FormAction SourceList
+                 | BaseUri EscapedURI
                  deriving (Eq, Show, Data, Typeable)
 
 
@@ -190,3 +191,4 @@ textDirective (Sandbox s) = mconcat ["sandbox ", T.unwords . fmap textSandbox $ 
 textDirective (FrameAncestors x) =  w "frame-ancestors" x
 textDirective (ChildSrc x) = w "child-src" x
 textDirective (FormAction x) = w "form-action" x
+textDirective (BaseUri x) = w "base-uri" x

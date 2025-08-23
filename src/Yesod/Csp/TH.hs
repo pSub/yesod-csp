@@ -136,6 +136,15 @@ reportUri = do
     Nothing -> fail "reportUri" -- n.b. compile time error
     Just uri -> return $ ReportUri uri
 
+baseUri :: Parser Directive
+baseUri = do
+  _ <- string "base-uri"
+  _ <- spaces
+  u <- takeTill separated
+  case escapeAndParseURI u of
+    Nothing -> fail "baseUri" -- n.b. compile time error
+    Just uri -> return $ BaseUri uri
+
 sandbox :: Parser Directive
 sandbox = do
   _ <- string "sandbox"
@@ -159,4 +168,4 @@ separator = comma *> (spaces *> pure ())
 
 directive :: Parser DirectiveList
 directive = sepBy (spaces *> d) separator <* (spaces *> endOfInput)
-  where d = withSourceList <|> reportUri <|> sandbox
+  where d = withSourceList <|> reportUri <|> baseUri <|> sandbox
