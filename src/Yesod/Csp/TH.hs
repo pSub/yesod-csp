@@ -4,12 +4,14 @@ module Yesod.Csp.TH (
     source
     , withSourceList
     , reportUri
+    , pluginTypes
     , sandbox
     , sandboxOptions
     , directive
     , csp
   ) where
 
+import           Codec.MIME.Parse          (parseMIMEType)
 import           Control.Applicative
 import           Data.Attoparsec.Text
 import           Data.Generics
@@ -145,6 +147,15 @@ baseUri = do
     Nothing -> fail "baseUri" -- n.b. compile time error
     Just uri -> return $ BaseUri uri
 
+pluginTypes :: Parser Directive
+pluginTypes = do
+  _ <- string "plugin-types"
+  _ <- spaces
+  u <- takeTill separated
+  case parseMIMEType u of
+    Nothing -> fail "plugin-types" -- n.b. compile time error
+    Just mimeType -> return $ PluginTypes $ pure mimeType
+
 sandbox :: Parser Directive
 sandbox = do
   _ <- string "sandbox"
@@ -168,4 +179,4 @@ separator = comma *> (spaces *> pure ())
 
 directive :: Parser DirectiveList
 directive = sepBy (spaces *> d) separator <* (spaces *> endOfInput)
-  where d = withSourceList <|> reportUri <|> baseUri <|> sandbox
+  where d = withSourceList <|> reportUri <|> baseUri <|> pluginTypes <|> sandbox

@@ -1,6 +1,6 @@
 { mkDerivation, attoparsec, base, case-insensitive, hspec, lib
 , mono-traversable, network-uri, semigroups, syb, template-haskell
-, text, wai, yesod, yesod-core, yesod-test
+, text, wai, yesod, yesod-core, yesod-test, mime
 }:
 mkDerivation {
   pname = "yesod-csp";
@@ -10,7 +10,7 @@ mkDerivation {
   isExecutable = false;
   libraryHaskellDepends = [
     attoparsec base case-insensitive mono-traversable network-uri
-    semigroups syb template-haskell text wai yesod yesod-core
+    semigroups syb template-haskell text wai yesod yesod-core mime
   ];
   testHaskellDepends = [
     attoparsec base hspec network-uri semigroups template-haskell yesod

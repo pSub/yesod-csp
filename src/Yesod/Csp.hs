@@ -1,3 +1,4 @@
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE OverloadedStrings  #-}
 -- | Add <http://content-security-policy.com/ CSP> headers to Yesod apps.
@@ -18,6 +19,7 @@ module Yesod.Csp (
   , textSource
   ) where
 
+import           Codec.MIME.Type as Mime
 import qualified Data.CaseInsensitive as CI
 import           Data.Data          (Data)
 import           Data.List.NonEmpty
@@ -140,6 +142,12 @@ textSource StrictDynamic = "'strict-dynamic'"
 textSource (MetaSource _) = ""
 textSource (Nonce x) = (T.pack . show) x
 
+deriving instance Data Multipart
+deriving instance Data Mime.MIMEType
+deriving instance Data Mime.MIMEParam
+deriving instance Data Mime.Type
+type MimeTypeList = NonEmpty Mime.Type
+
 -- | A list of restrictions to apply.
 type DirectiveList = [Directive]
 
@@ -162,6 +170,7 @@ data Directive = DefaultSrc SourceList
                  | ChildSrc SourceList
                  | FormAction SourceList
                  | BaseUri EscapedURI
+                 | PluginTypes MimeTypeList
                  deriving (Eq, Show, Data, Typeable)
 
 
@@ -191,4 +200,5 @@ textDirective (Sandbox s) = mconcat ["sandbox ", T.unwords . fmap textSandbox $ 
 textDirective (FrameAncestors x) =  w "frame-ancestors" x
 textDirective (ChildSrc x) = w "child-src" x
 textDirective (FormAction x) = w "form-action" x
-textDirective (BaseUri x) = w "base-uri" x
+textDirective (BaseUri t) = mconcat ["base-uri ", (T.pack . show) t]
+textDirective (PluginTypes t) = mconcat ["plugin-types ", (T.unwords . fmap Mime.showType . toList) t]

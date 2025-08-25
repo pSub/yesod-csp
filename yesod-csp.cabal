@@ -35,6 +35,7 @@ library
                        , syb >= 0.7.2 && < 0.8
                        , wai >= 3.2.3 && < 3.3
                        , case-insensitive >= 1.2.1 && < 1.3
+                       , mime >= 0.4.0.0 && < 0.5
   hs-source-dirs:      src
   default-language:    Haskell2010
   ghc-options:         -Wall
@@ -53,4 +54,5 @@ test-suite tests
                        , network-uri
                        , attoparsec
                        , template-haskell
+                       , mime
   default-language:    Haskell2010
