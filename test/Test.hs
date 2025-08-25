@@ -4,6 +4,7 @@
 {-# LANGUAGE TemplateHaskell       #-}
 {-# LANGUAGE TypeFamilies          #-}
 
+import           Codec.MIME.Parse          (parseMIMEType)
 import           Data.Attoparsec.Text
 import           Data.Functor         ((<$>))
 import           Data.List.NonEmpty
@@ -57,6 +58,10 @@ tests = yesodSpec Test $ do
     yit "enforces nones" $ do
       let header = getCspPolicy [ScriptSrc (None :| [Https])]
       assertEq "none should be alone" header "script-src 'none'"
+    yit "works with plugin-types" $ do
+      let dom = pure $ fromJust $ parseMIMEType "text/plain"
+          header = getCspPolicy [PluginTypes dom]
+      assertEq "plugin-types" header "plugin-types text/plain"
   ydescribe "Headers" $
     yit "get set" $ do
       get HomeR

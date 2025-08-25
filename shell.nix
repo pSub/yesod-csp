@@ -6,7 +6,7 @@ let
 
   f = { mkDerivation, attoparsec, base, hspec, mono-traversable
       , network-uri, semigroups, stdenv, syb, template-haskell, text
-      , uniplate, yesod, yesod-core, yesod-test
+      , uniplate, yesod, yesod-core, yesod-test, mime
       }:
       mkDerivation {
         pname = "yesod-csp";
@@ -14,7 +14,7 @@ let
         src = ./.;
         libraryHaskellDepends = [
           attoparsec base mono-traversable network-uri semigroups syb
-          template-haskell text uniplate yesod yesod-core
+          template-haskell text uniplate yesod yesod-core mime
         ];
         testHaskellDepends = [
           attoparsec base hspec network-uri semigroups template-haskell yesod

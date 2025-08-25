@@ -4,12 +4,14 @@ module Yesod.Csp.TH (
     source
     , withSourceList
     , reportUri
+    , pluginTypes
     , sandbox
     , sandboxOptions
     , directive
     , csp
   ) where
 
+import           Codec.MIME.Parse          (parseMIMEType)
 import           Control.Applicative
 import           Data.Attoparsec.Text
 import           Data.Generics
@@ -106,6 +108,8 @@ withSourceList = defaultSrc
                  <|> mediaSrc
                  <|> frameSrc
                  <|> frameAncestors
+                 <|> childSrc
+                 <|> formAction
   where defaultSrc = d "default-src" DefaultSrc
         scriptSrc = d "script-src" ScriptSrc
         styleSrc = d "style-src" StyleSrc
@@ -116,6 +120,8 @@ withSourceList = defaultSrc
         mediaSrc = d "media-src" MediaSrc
         frameSrc = d "frame-src" FrameSrc
         frameAncestors = d "frame-ancestors" FrameAncestors
+        childSrc = d "child-src" ChildSrc
+        formAction = d "form-action" FormAction
         d x y = string x >> s >> slist >>= mkWithSource y
         slist = sepBy1 source (char ' ')
         s = spaces
@@ -131,6 +137,24 @@ reportUri = do
   case escapeAndParseURI u of
     Nothing -> fail "reportUri" -- n.b. compile time error
     Just uri -> return $ ReportUri uri
+
+baseUri :: Parser Directive
+baseUri = do
+  _ <- string "base-uri"
+  _ <- spaces
+  u <- takeTill separated
+  case escapeAndParseURI u of
+    Nothing -> fail "baseUri" -- n.b. compile time error
+    Just uri -> return $ BaseUri uri
+
+pluginTypes :: Parser Directive
+pluginTypes = do
+  _ <- string "plugin-types"
+  _ <- spaces
+  u <- takeTill separated
+  case parseMIMEType u of
+    Nothing -> fail "plugin-types" -- n.b. compile time error
+    Just mimeType -> return $ PluginTypes $ pure mimeType
 
 sandbox :: Parser Directive
 sandbox = do
@@ -155,4 +179,4 @@ separator = comma *> (spaces *> pure ())
 
 directive :: Parser DirectiveList
 directive = sepBy (spaces *> d) separator <* (spaces *> endOfInput)
-  where d = withSourceList <|> reportUri <|> sandbox
+  where d = withSourceList <|> reportUri <|> baseUri <|> pluginTypes <|> sandbox
