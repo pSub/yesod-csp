@@ -31,7 +31,7 @@ library
                        , yesod >= 1.6.2 && < 1.7
                        , mono-traversable >= 1.0.15 && < 1.1
                        , attoparsec >= 0.14.4 && < 0.15
-                       , template-haskell >= 2.19.0 && < 2.22
+                       , template-haskell >= 2.19.0 && < 2.24
                        , syb >= 0.7.2 && < 0.8
                        , wai >= 3.2.3 && < 3.3
                        , case-insensitive >= 1.2.1 && < 1.3
