@@ -12,7 +12,7 @@ maintainer:          Pascal Wittmann <mail@pascal-wittmann.de>
 category:            Web
 build-type:          Simple
 cabal-version:       >=1.10
-extra-source-files:  ./CHANGELOG.md
+extra-source-files:  CHANGELOG.md
 
 source-repository head
   type: git
