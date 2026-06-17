@@ -6,7 +6,6 @@
 
 import           Codec.MIME.Parse          (parseMIMEType)
 import           Data.Attoparsec.Text
-import           Data.Functor         ((<$>))
 import           Data.List.NonEmpty
 import           Data.Maybe
 import           Test.Hspec
@@ -88,10 +87,10 @@ tests = yesodSpec Test $ do
       assertEq "report-uri http://hello.com" (parseOnly reportUri "report-uri http://hello.com") (Right $ ReportUri (fromJust (escapeAndParseURI "http://hello.com")))
       assertEq "sandbox allow-forms allow-scripts" (parseOnly sandbox "sandbox allow-forms allow-scripts") (Right $ Sandbox [AllowForms, AllowScripts])
     yit "works with lists" $ do
-      let result = [ImgSrc $ Self :| [Https], ScriptSrc $ Host (fromJust $ escapeAndParseURI "https://foo.com") :| []]
-      assertEq "scripts and images" (parseOnly directive "img-src 'self' https:; script-src https://foo.com") (Right result)
-      let result = [ImgSrc $ Self :| [DataScheme, Host (fromJust $ escapeAndParseURI "https://foo.com")]]
-      assertEq "data and hosts" (parseOnly directive "img-src 'self' data: https://foo.com") (Right result)
+      let resultHttps = [ImgSrc $ Self :| [Https], ScriptSrc $ Host (fromJust $ escapeAndParseURI "https://foo.com") :| []]
+      assertEq "scripts and images" (parseOnly directive "img-src 'self' https:; script-src https://foo.com") (Right resultHttps)
+      let resultData = [ImgSrc $ Self :| [DataScheme, Host (fromJust $ escapeAndParseURI "https://foo.com")]]
+      assertEq "data and hosts" (parseOnly directive "img-src 'self' data: https://foo.com") (Right resultData)
     yit "works with nonces and th" $ do
       let result = [ScriptSrc $ (nonce "foo") :| []]
       assertEq "nonces and th" [csp|script-src 'nonce-foo'|] result
