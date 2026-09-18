@@ -61,6 +61,18 @@ tests = yesodSpec Test $ do
       let dom = pure $ fromJust $ parseMIMEType "text/plain"
           header = getCspPolicy [PluginTypes dom]
       assertEq "plugin-types" header "plugin-types text/plain"
+    yit "works with worker-src" $ do
+      let header = getCspPolicy [WorkerSrc (Self :| [])]
+      assertEq "worker-src" header "worker-src 'self'"
+    yit "works with manifest-src" $ do
+      let header = getCspPolicy [ManifestSrc (Self :| [])]
+      assertEq "manifest-src" header "manifest-src 'self'"
+    yit "works with prefetch-src" $ do
+      let header = getCspPolicy [PrefetchSrc (Https :| [Self])]
+      assertEq "prefetch-src" header "prefetch-src https: 'self'"
+    yit "works with report-to" $ do
+      let header = getCspPolicy [ReportTo "csp-endpoint"]
+      assertEq "report-to" header "report-to csp-endpoint"
   ydescribe "Headers" $
     yit "get set" $ do
       get HomeR
@@ -85,6 +97,10 @@ tests = yesodSpec Test $ do
       assertEq "unsafe-eval" (parseOnly source "unsafe-eval") (Right UnsafeEval)
       assertEq "default-src self data:" (parseOnly withSourceList "default-src 'self' data:") (Right $ DefaultSrc (Self :| [DataScheme]))
       assertEq "report-uri http://hello.com" (parseOnly reportUri "report-uri http://hello.com") (Right $ ReportUri (fromJust (escapeAndParseURI "http://hello.com")))
+      assertEq "report-to csp-endpoint" (parseOnly reportTo "report-to csp-endpoint") (Right $ ReportTo "csp-endpoint")
+      assertEq "worker-src self" (parseOnly withSourceList "worker-src 'self'") (Right $ WorkerSrc (Self :| []))
+      assertEq "manifest-src self" (parseOnly withSourceList "manifest-src 'self'") (Right $ ManifestSrc (Self :| []))
+      assertEq "prefetch-src self" (parseOnly withSourceList "prefetch-src 'self'") (Right $ PrefetchSrc (Self :| []))
       assertEq "sandbox allow-forms allow-scripts" (parseOnly sandbox "sandbox allow-forms allow-scripts") (Right $ Sandbox [AllowForms, AllowScripts])
     yit "works with lists" $ do
       let resultHttps = [ImgSrc $ Self :| [Https], ScriptSrc $ Host (fromJust $ escapeAndParseURI "https://foo.com") :| []]

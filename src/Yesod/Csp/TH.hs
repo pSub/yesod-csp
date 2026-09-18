@@ -4,6 +4,7 @@ module Yesod.Csp.TH (
     source
     , withSourceList
     , reportUri
+    , reportTo
     , pluginTypes
     , sandbox
     , sandboxOptions
@@ -110,6 +111,9 @@ withSourceList = defaultSrc
                  <|> frameAncestors
                  <|> childSrc
                  <|> formAction
+                 <|> workerSrc
+                 <|> manifestSrc
+                 <|> prefetchSrc
   where defaultSrc = d "default-src" DefaultSrc
         scriptSrc = d "script-src" ScriptSrc
         styleSrc = d "style-src" StyleSrc
@@ -122,6 +126,9 @@ withSourceList = defaultSrc
         frameAncestors = d "frame-ancestors" FrameAncestors
         childSrc = d "child-src" ChildSrc
         formAction = d "form-action" FormAction
+        workerSrc = d "worker-src" WorkerSrc
+        manifestSrc = d "manifest-src" ManifestSrc
+        prefetchSrc = d "prefetch-src" PrefetchSrc
         d x y = string x >> s >> slist >>= mkWithSource y
         slist = sepBy1 source (char ' ')
         s = spaces
@@ -137,6 +144,15 @@ reportUri = do
   case escapeAndParseURI u of
     Nothing -> fail "reportUri" -- n.b. compile time error
     Just uri -> return $ ReportUri uri
+
+reportTo :: Parser Directive
+reportTo = do
+  _ <- string "report-to"
+  _ <- spaces
+  g <- takeTill separated
+  if T.null g
+    then fail "reportTo" -- n.b. compile time error
+    else return $ ReportTo g
 
 baseUri :: Parser Directive
 baseUri = do
@@ -179,4 +195,4 @@ separator = comma *> (spaces *> pure ())
 
 directive :: Parser DirectiveList
 directive = sepBy (spaces *> d) separator <* (spaces *> endOfInput)
-  where d = withSourceList <|> reportUri <|> baseUri <|> pluginTypes <|> sandbox
+  where d = withSourceList <|> reportUri <|> reportTo <|> baseUri <|> pluginTypes <|> sandbox

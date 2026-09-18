@@ -171,6 +171,12 @@ data Directive = DefaultSrc SourceList
                  | FormAction SourceList
                  | BaseUri EscapedURI
                  | PluginTypes MimeTypeList
+                 -- | CSP level 3 directives
+                 | WorkerSrc SourceList
+                 | ManifestSrc SourceList
+                 | PrefetchSrc SourceList
+                 -- | Names a reporting group defined by the @Reporting-Endpoints@ (or @Report-To@) response header.
+                 | ReportTo Text
                  deriving (Eq, Show, Data, Typeable)
 
 
@@ -202,3 +208,7 @@ textDirective (ChildSrc x) = w "child-src" x
 textDirective (FormAction x) = w "form-action" x
 textDirective (BaseUri t) = mconcat ["base-uri ", (T.pack . show) t]
 textDirective (PluginTypes t) = mconcat ["plugin-types ", (T.unwords . fmap Mime.showType . toList) t]
+textDirective (WorkerSrc x) = w "worker-src" x
+textDirective (ManifestSrc x) = w "manifest-src" x
+textDirective (PrefetchSrc x) = w "prefetch-src" x
+textDirective (ReportTo t) = mconcat ["report-to ", t]
