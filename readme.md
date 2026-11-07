@@ -21,6 +21,18 @@ This is a work in progress, not battle-hardened! Use with caution and confirm yo
 
 [This module](https://github.com/pSub/yesod-csp/blob/master/src/Yesod/Csp/Example.hs) contains a host of runnable example Yesod handlers which set various CSP headers.
 
+#### Nonces
+
+A nonce only protects you if it is unpredictable and changes with every response. `getCspNonce` returns a random nonce for the current request, and returns the same value on every call within that request:
+
+```haskell
+getHomeR :: Handler Html
+getHomeR = do
+  n <- getCspNonce
+  cspPolicy [ScriptSrc (nonce n :| [])]
+  defaultLayout [whamlet|<script nonce=#{n}>alert("hi");|]
+```
+
 #### Template Haskell support
 
 I'm working on Template Haskell support so you don't need to write the ADTs yourself explicitly. You can get the same compile-time checking with the familar CSP DSL:

@@ -11,6 +11,7 @@ module Yesod.Csp (
   , escapeAndParseURI
   , escapedTextForNonce
   , nonce
+  , getCspNonce
   , DirectiveList
   , Directive(..)
   , SourceList
@@ -20,6 +21,7 @@ module Yesod.Csp (
   ) where
 
 import           Codec.MIME.Type as Mime
+import qualified Data.ByteString.Base64 as B64
 import qualified Data.CaseInsensitive as CI
 import           Data.Char          (isAlphaNum, isAscii)
 import           Data.Data          (Data)
@@ -29,6 +31,7 @@ import qualified Data.Text          as T
 import qualified Data.Text.Encoding as TE
 import           Data.Typeable      (Typeable)
 import           Network.URI
+import           System.Entropy     (getEntropy)
 import           Yesod.Core
 import           Network.Wai        (Middleware, mapResponseHeaders,
                                      modifyResponse)
@@ -96,6 +99,23 @@ escapedTextForNonce = EscapedText . Prelude.filter isBase64Char
 -- | Escapes a Text value, returning a valid Nonce
 nonce :: Text -> Source
 nonce = Nonce . escapedTextForNonce . T.unpack
+
+newtype CspNonce = CspNonce Text
+
+-- | Returns a nonce for the current request: 18 bytes from the system's
+-- cryptographically secure random number generator, base64-encoded.
+-- Every call within the same request returns the same value, so it can be
+-- used both in the header and in the @nonce@ attribute of your tags.
+--
+-- > getExample :: Handler Html
+-- > getExample = do
+-- >   n <- getCspNonce
+-- >   cspPolicy [ScriptSrc (nonce n :| [])]
+-- >   defaultLayout [whamlet|<script nonce=#{n}>alert("hi");|]
+getCspNonce :: MonadHandler m => m Text
+getCspNonce = do
+  CspNonce n <- cached $ CspNonce . TE.decodeUtf8 . B64.encode <$> liftIO (getEntropy 18)
+  return n
 
 directiveListToHeader :: DirectiveList -> Text
 directiveListToHeader = T.intercalate "; " . fmap textDirective

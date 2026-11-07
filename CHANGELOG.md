@@ -5,6 +5,7 @@
 + Fix directive injection via `report-to`: characters that are not valid in an HTTP token are now dropped from the group name
 + Restrict nonces to base64 and base64url characters; commas, line breaks and other characters are now dropped
 + Escape commas in URIs so they can no longer split the header into several policies
++ Add `getCspNonce`, which returns a random nonce per request, and use it in the examples instead of a fixed nonce
 
 ## Version 0.2.8.0
 

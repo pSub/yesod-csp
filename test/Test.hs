@@ -6,6 +6,9 @@
 
 import           Codec.MIME.Parse          (parseMIMEType)
 import           Data.Attoparsec.Text
+import qualified Data.ByteString.Lazy      as BL
+import           Data.Text                 (Text)
+import           Network.Wai.Test          (simpleBody)
 import           Data.List.NonEmpty
 import           Data.Maybe
 import           Test.Hspec
@@ -18,6 +21,7 @@ data Test = Test
 mkYesod "Test" [parseRoutes|
 / HomeR GET
 /nocsp NoCspR GET
+/nonce NonceR GET
 |]
 
 instance Yesod Test
@@ -30,6 +34,14 @@ getHomeR = do
 getNoCspR :: Handler Html
 getNoCspR = do
   defaultLayout [whamlet|hello|]
+
+-- Responds with the request's nonce, after checking it is stable within the request.
+getNonceR :: Handler Text
+getNonceR = do
+  n <- getCspNonce
+  n' <- getCspNonce
+  cspPolicy [ScriptSrc (nonce n :| [])]
+  return $ if n == n' then n else "nonce changed within the request"
 
 main :: IO ()
 main = hspec $ tests >> middlewareTest
@@ -97,6 +109,18 @@ tests = yesodSpec Test $ do
     yit "get set" $ do
       get HomeR
       assertHeader "Content-Security-Policy" "script-src 'self'; style-src https: 'self'"
+  ydescribe "Nonces" $
+    yit "are fresh per request and match the header" $ do
+      let responseNonce = withResponse $ \r -> do
+            let n = BL.toStrict (simpleBody r)
+            assertEq "nonce length" 24 (BL.length (simpleBody r))
+            assertHeader "Content-Security-Policy" ("script-src 'nonce-" <> n <> "'")
+            return n
+      get NonceR
+      n1 <- responseNonce
+      get NonceR
+      n2 <- responseNonce
+      assertNotEq "fresh nonce per request" n1 n2
   ydescribe "Sandboxes" $ do
     yit "works when empty" $ do
       let header = getCspPolicy [Sandbox []]
