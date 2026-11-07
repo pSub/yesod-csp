@@ -13,3 +13,7 @@ result
 
 .idea
 *.iml
+/cache/
+/dist-newstyle/
+/packagedb/
+/tmp/
