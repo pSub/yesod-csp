@@ -21,6 +21,7 @@ module Yesod.Csp (
 
 import           Codec.MIME.Type as Mime
 import qualified Data.CaseInsensitive as CI
+import           Data.Char          (isAlphaNum, isAscii)
 import           Data.Data          (Data)
 import           Data.List.NonEmpty
 import           Data.Text          (Text)
@@ -176,6 +177,7 @@ data Directive = DefaultSrc SourceList
                  | ManifestSrc SourceList
                  | PrefetchSrc SourceList
                  -- | Names a reporting group defined by the @Reporting-Endpoints@ (or @Report-To@) response header.
+                 -- Characters that are not valid in an HTTP token are dropped when rendering.
                  | ReportTo Text
                  deriving (Eq, Show, Data, Typeable)
 
@@ -211,4 +213,6 @@ textDirective (PluginTypes t) = mconcat ["plugin-types ", (T.unwords . fmap Mime
 textDirective (WorkerSrc x) = w "worker-src" x
 textDirective (ManifestSrc x) = w "manifest-src" x
 textDirective (PrefetchSrc x) = w "prefetch-src" x
-textDirective (ReportTo t) = mconcat ["report-to ", t]
+textDirective (ReportTo t) = mconcat ["report-to ", T.filter isTokenChar t]
+  -- RFC 9110 token; keeps ';', ',', whitespace and CR/LF from injecting directives or policies
+  where isTokenChar c = (isAscii c && isAlphaNum c) || c `elem` ("!#$%&'*+-.^_`|~" :: String)

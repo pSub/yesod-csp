@@ -73,6 +73,12 @@ tests = yesodSpec Test $ do
     yit "works with report-to" $ do
       let header = getCspPolicy [ReportTo "csp-endpoint"]
       assertEq "report-to" header "report-to csp-endpoint"
+    yit "prevents directive injection via report-to" $ do
+      let header = getCspPolicy [DefaultSrc (Self :| []), ReportTo "g; script-src * 'unsafe-inline'"]
+      assertEq "report-to injection" header "default-src 'self'; report-to gscript-src*'unsafe-inline'"
+    yit "strips policy separators and line breaks from report-to" $ do
+      let header = getCspPolicy [ReportTo "g,\r\nX-Injected: yes"]
+      assertEq "report-to separators" header "report-to gX-Injectedyes"
   ydescribe "Headers" $
     yit "get set" $ do
       get HomeR
