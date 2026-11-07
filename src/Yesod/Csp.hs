@@ -87,9 +87,11 @@ notEscapable = not . flip elem toEscape
 escapeAndParseURI :: Text -> Maybe EscapedURI
 escapeAndParseURI = fmap EscapedURI . parseURI . escapeURIString notEscapable . T.unpack
 
--- | Escapes Text to be a valid nonce value
+-- | Escapes Text to be a valid nonce value by keeping only base64 and
+-- base64url characters (and @=@ padding); everything else is dropped.
 escapedTextForNonce :: String -> EscapedText
-escapedTextForNonce = EscapedText . Prelude.filter notEscapable
+escapedTextForNonce = EscapedText . Prelude.filter isBase64Char
+  where isBase64Char c = (isAscii c && isAlphaNum c) || c `elem` ("+/-_=" :: String)
 
 -- | Escapes a Text value, returning a valid Nonce
 nonce :: Text -> Source

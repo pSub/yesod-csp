@@ -47,6 +47,12 @@ tests = yesodSpec Test $ do
     yit "works with nonce-source" $ do
       let header = getCspPolicy [ScriptSrc (nonce "foo" :| [])]
       assertEq "basic nonce-source" header "script-src 'nonce-foo'"
+    yit "keeps base64 and base64url nonces intact" $ do
+      let header = getCspPolicy [ScriptSrc (nonce "aB3+/9-_==" :| [])]
+      assertEq "base64 nonce-source" header "script-src 'nonce-aB3+/9-_=='"
+    yit "strips non-base64 characters from nonces" $ do
+      let header = getCspPolicy [ScriptSrc (nonce "a,b\r\nX-Injected: yes; 'c'" :| [])]
+      assertEq "nonce injection" header "script-src 'nonce-abX-Injectedyesc'"
     yit "works with report_uri" $ do
       let dom = fromJust $ escapeAndParseURI "https://foo.com"
           header = getCspPolicy [ReportUri dom]

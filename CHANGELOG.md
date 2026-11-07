@@ -3,6 +3,7 @@
 ## Version 0.2.8.1
 
 + Fix directive injection via `report-to`: characters that are not valid in an HTTP token are now dropped from the group name
++ Restrict nonces to base64 and base64url characters; commas, line breaks and other characters are now dropped
 
 ## Version 0.2.8.0
 
