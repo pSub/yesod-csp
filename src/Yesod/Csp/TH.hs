@@ -86,9 +86,11 @@ source = wildcard
             (Just ';') -> return Https
             Nothing -> return Https
             _ -> fail "https"
-        unsafeInline = string "unsafe-inline" *> pure UnsafeInline
-        unsafeEval = string "unsafe-eval" *> pure UnsafeEval
-        strictDynamic = string "strict-dynamic" *> pure StrictDynamic
+        -- quoted is the standard CSP form; unquoted is kept for compatibility
+        keyword k = string ("'" <> k <> "'") <|> string k
+        unsafeInline = keyword "unsafe-inline" *> pure UnsafeInline
+        unsafeEval = keyword "unsafe-eval" *> pure UnsafeEval
+        strictDynamic = keyword "strict-dynamic" *> pure StrictDynamic
 
 separated :: Char -> Bool
 separated x = x == ';' || x == ' '

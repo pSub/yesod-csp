@@ -58,6 +58,9 @@ getCspPolicy = directiveListToHeader
 
 -- | Creates a WAI 'Middleware' to add a Content-Security-Policy
 -- header to every response.
+--
+-- A header set by a handler with 'cspPolicy' is kept, not replaced. The
+-- browser then enforces both policies, so a resource must be allowed by each.
 cspMiddleware :: DirectiveList -> Middleware
 cspMiddleware = addHeaderMiddleware . mkHeader . directiveListToHeader
   where
@@ -127,7 +130,7 @@ wrap :: Text -> SourceList -> Text
 wrap k x = mconcat [k, " ", textSourceList x]
 
 textSourceList :: SourceList -> Text
-textSourceList = T.unwords . toList . filtered
+textSourceList = T.unwords . Prelude.filter (not . T.null) . toList . filtered
   where filtered = fmap textSource . filterOut
 
 -- * and none should be alone if present
@@ -137,7 +140,10 @@ filterOut x | None `elem` x = None :| []
             | otherwise = x
 
 -- | Represents a location from which assets may be loaded.
-data Source = Wildcard
+data Source = -- | @*@. Any other source in the same list is dropped, so
+              -- @Wildcard :| [UnsafeInline]@ renders as just @*@.
+              Wildcard
+              -- | @'none'@. Any other source in the same list is dropped.
               | None
               | Self
               | DataScheme
@@ -147,6 +153,7 @@ data Source = Wildcard
               | UnsafeEval
               | StrictDynamic
               | Nonce EscapedText
+              -- | Used internally by the @csp@ quasi-quoter for antiquotes; renders as nothing.
               | MetaSource Text deriving (Eq, Show, Data, Typeable)
 
 -- | A list of allowed sources for a directive.
@@ -187,16 +194,21 @@ data Directive = DefaultSrc SourceList
                  | FrameSrc SourceList
                  -- | Applies a sandbox to the result. <http://content-security-policy.com/ See here> for more info.
                  | Sandbox [SandboxOptions]
+                 -- | Deprecated in CSP Level 3 in favour of 'ReportTo', but still the
+                 -- only reporting directive some browsers support; send both.
                  | ReportUri EscapedURI
                  -- | CSP level 2 directives
                  | FrameAncestors SourceList
                  | ChildSrc SourceList
                  | FormAction SourceList
                  | BaseUri EscapedURI
+                 -- | Removed from the CSP specification and ignored by current browsers.
+                 -- Use @ObjectSrc (None :| [])@ to block plugins instead.
                  | PluginTypes MimeTypeList
                  -- | CSP level 3 directives
                  | WorkerSrc SourceList
                  | ManifestSrc SourceList
+                 -- | Removed from the CSP specification; browsers may ignore it.
                  | PrefetchSrc SourceList
                  -- | Names a reporting group defined by the @Reporting-Endpoints@ (or @Report-To@) response header.
                  -- Characters that are not valid in an HTTP token are dropped when rendering.

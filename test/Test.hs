@@ -83,6 +83,9 @@ tests = yesodSpec Test $ do
     yit "enforces nones" $ do
       let header = getCspPolicy [ScriptSrc (None :| [Https])]
       assertEq "none should be alone" header "script-src 'none'"
+    yit "renders meta sources as nothing" $ do
+      let header = getCspPolicy [ScriptSrc (Self :| [MetaSource "x"])]
+      assertEq "no trailing space" header "script-src 'self'"
     yit "works with plugin-types" $ do
       let dom = pure $ fromJust $ parseMIMEType "text/plain"
           header = getCspPolicy [PluginTypes dom]
@@ -139,6 +142,9 @@ tests = yesodSpec Test $ do
       assertEq "https:" (parseOnly source "https:") (Right Https)
       assertEq "unsafe-inline" (parseOnly source "unsafe-inline") (Right UnsafeInline)
       assertEq "unsafe-eval" (parseOnly source "unsafe-eval") (Right UnsafeEval)
+      assertEq "'unsafe-inline'" (parseOnly source "'unsafe-inline'") (Right UnsafeInline)
+      assertEq "'unsafe-eval'" (parseOnly source "'unsafe-eval'") (Right UnsafeEval)
+      assertEq "'strict-dynamic'" (parseOnly source "'strict-dynamic'") (Right StrictDynamic)
       assertEq "default-src self data:" (parseOnly withSourceList "default-src 'self' data:") (Right $ DefaultSrc (Self :| [DataScheme]))
       assertEq "report-uri http://hello.com" (parseOnly reportUri "report-uri http://hello.com") (Right $ ReportUri (fromJust (escapeAndParseURI "http://hello.com")))
       assertEq "report-to csp-endpoint" (parseOnly reportTo "report-to csp-endpoint") (Right $ ReportTo "csp-endpoint")
@@ -163,6 +169,9 @@ tests = yesodSpec Test $ do
       assertEq "with th" [csp|img-src 'self' https:;  script-src https://foo.com|] result
       let url = fromJust $ escapeAndParseURI "https://foo.com"
       assertEq "with antiquoting" [csp|img-src 'self' https:; script-src $url|] result
+    yit "works with quoted keywords and th" $ do
+      let result = [ScriptSrc $ Self :| [UnsafeInline, StrictDynamic]]
+      assertEq "quoted keywords" [csp|script-src 'self' 'unsafe-inline' 'strict-dynamic'|] result
     yit "works with th and newlines" $ do
       let attempt = [csp|
         default-src 'self'
