@@ -78,12 +78,12 @@ instance Show EscapedText where
   show x = mconcat ["'nonce-", text x, "'"]
 
 toEscape :: String
-toEscape = ";'* "
+toEscape = ";,'* "
 
 notEscapable :: Char -> Bool
 notEscapable = not . flip elem toEscape
 
--- | Escapes ';' '\'' and ' ', and parses to URI
+-- | Escapes ';' ',' '\'' '*' and ' ', and parses to URI
 escapeAndParseURI :: Text -> Maybe EscapedURI
 escapeAndParseURI = fmap EscapedURI . parseURI . escapeURIString notEscapable . T.unpack
 

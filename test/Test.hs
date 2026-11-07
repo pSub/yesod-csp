@@ -44,6 +44,14 @@ tests = yesodSpec Test $ do
       let dom = fromJust $ escapeAndParseURI "https://foo.com/bar *"
           header = getCspPolicy [ScriptSrc (Host dom :| [])]
       assertEq "foo.com script-src" header "script-src https://foo.com/bar%20%2A"
+    yit "escapes commas in domains" $ do
+      let dom = fromJust $ escapeAndParseURI "https://foo.com,script-src"
+          header = getCspPolicy [ScriptSrc (Host dom :| [])]
+      assertEq "comma in host" header "script-src https://foo.com%2Cscript-src"
+    yit "escapes commas in report-uri" $ do
+      let dom = fromJust $ escapeAndParseURI "https://foo.com/a,b"
+          header = getCspPolicy [ReportUri dom]
+      assertEq "comma in report-uri" header "report-uri https://foo.com/a%2Cb"
     yit "works with nonce-source" $ do
       let header = getCspPolicy [ScriptSrc (nonce "foo" :| [])]
       assertEq "basic nonce-source" header "script-src 'nonce-foo'"
