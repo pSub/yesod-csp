@@ -9,6 +9,7 @@ module Yesod.Csp (
   , cspMiddleware
   , EscapedURI
   , escapeAndParseURI
+  , escapeAndParseAnyURI
   , escapedTextForNonce
   , nonce
   , getCspNonce
@@ -89,9 +90,20 @@ toEscape = ";,'* "
 notEscapable :: Char -> Bool
 notEscapable = not . flip elem toEscape
 
--- | Escapes ';' ',' '\'' '*' and ' ', and parses to URI
+-- | Escapes ';' ',' '\'' '*' and ' ', and parses to URI.
+-- Only @http@, @https@, @ws@ and @wss@ URIs with a host are accepted, so
+-- untrusted input cannot widen a policy to a whole scheme such as @https:@ or @data:@.
 escapeAndParseURI :: Text -> Maybe EscapedURI
-escapeAndParseURI = fmap EscapedURI . parseURI . escapeURIString notEscapable . T.unpack
+escapeAndParseURI t = escapeAndParseAnyURI t >>= \e ->
+  if uriScheme (uri e) `elem` ["http:", "https:", "ws:", "wss:"] && hasHost (uri e)
+    then Just e else Nothing
+  where hasHost = maybe False (not . null . uriRegName) . uriAuthority
+
+-- | Like 'escapeAndParseURI', but accepts any absolute URI, including
+-- scheme-only sources such as @blob:@ or @https:@. Use only for trusted input;
+-- the @csp@ quasi-quoter uses it for sources written in the policy.
+escapeAndParseAnyURI :: Text -> Maybe EscapedURI
+escapeAndParseAnyURI = fmap EscapedURI . parseURI . escapeURIString notEscapable . T.unpack
 
 -- | Escapes Text to be a valid nonce value by keeping only base64 and
 -- base64url characters (and @=@ padding); everything else is dropped.

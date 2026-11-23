@@ -75,7 +75,7 @@ source = wildcard
         host :: Parser Source
         host = do
           u <- takeTill separated
-          case escapeAndParseURI u of
+          case escapeAndParseAnyURI u of
             Nothing -> fail "host"
             Just uri -> return $ Host uri
         https = do
@@ -143,7 +143,7 @@ reportUri = do
   _ <- string "report-uri"
   _ <- spaces
   u <- takeTill separated
-  case escapeAndParseURI u of
+  case escapeAndParseAnyURI u of
     Nothing -> fail "reportUri" -- n.b. compile time error
     Just uri -> return $ ReportUri uri
 
@@ -161,7 +161,7 @@ baseUri = do
   _ <- string "base-uri"
   _ <- spaces
   u <- takeTill separated
-  case escapeAndParseURI u of
+  case escapeAndParseAnyURI u of
     Nothing -> fail "baseUri" -- n.b. compile time error
     Just uri -> return $ BaseUri uri
 

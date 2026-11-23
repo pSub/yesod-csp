@@ -5,6 +5,7 @@
 + Fix directive injection via `report-to`: characters that are not valid in an HTTP token are now dropped from the group name
 + Restrict nonces to base64 and base64url characters; commas, line breaks and other characters are now dropped
 + Escape commas in URIs so they can no longer split the header into several policies
++ `escapeAndParseURI` now accepts only `http`, `https`, `ws` and `wss` URIs with a host, so untrusted input can no longer widen a policy to a whole scheme such as `https:` or `data:`. The new `escapeAndParseAnyURI` keeps the old behaviour for trusted input
 + Add `getCspNonce`, which returns a random nonce per request, and use it in the examples instead of a fixed nonce
 + Accept the standard quoted keywords `'unsafe-inline'`, `'unsafe-eval'` and `'strict-dynamic'` in the `csp` quasi-quoter
 + Stop rendering a trailing space for `MetaSource`
