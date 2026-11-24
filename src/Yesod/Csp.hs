@@ -14,6 +14,7 @@ module Yesod.Csp (
   , escapeAndParseURI
   , escapedTextForNonce
   , nonce
+  , getCspNonce
   , DirectiveList
   , Directive(..)
   , SourceList
@@ -26,6 +27,7 @@ module Yesod.Csp (
 import           Codec.MIME.Type as Mime
 import           Control.Applicative ((<|>))
 import           Control.Monad      (guard)
+import qualified Data.ByteString.Base64 as B64
 import qualified Data.CaseInsensitive as CI
 import           Data.Char          (isAlphaNum, isAscii)
 import           Data.Data          (Data)
@@ -35,6 +37,7 @@ import qualified Data.Text          as T
 import qualified Data.Text.Encoding as TE
 import           Data.Typeable      (Typeable)
 import           Network.URI
+import           System.Entropy     (getEntropy)
 import           Yesod.Core
 import           Network.Wai        (Middleware, mapResponseHeaders,
                                      modifyResponse)
@@ -67,6 +70,9 @@ getCspPolicy = directiveListToHeader
 
 -- | Creates a WAI 'Middleware' to add a Content-Security-Policy
 -- header to every response.
+--
+-- A header set by a handler with 'cspPolicy' is kept, not replaced. The
+-- browser then enforces both policies, so a resource must be allowed by each.
 cspMiddleware :: DirectiveList -> Middleware
 cspMiddleware = headerMiddleware cspHeaderName
 
@@ -121,12 +127,12 @@ instance Show EscapedText where
   show x = mconcat ["'nonce-", text x, "'"]
 
 toEscape :: String
-toEscape = ";'* "
+toEscape = ";,'* "
 
 notEscapable :: Char -> Bool
 notEscapable = not . flip elem toEscape
 
--- | Escapes ';' '\'' '*' and ' ', and parses to URI.
+-- | Escapes ';' ',' '\'' '*' and ' ', and parses to URI.
 -- A leading @*.@ in the host is kept as a wildcard subdomain, e.g. @https://*.example.com@.
 escapeAndParseURI :: Text -> Maybe EscapedURI
 escapeAndParseURI t = fmap EscapedURI (wildcardHost <|> parse t)
@@ -139,13 +145,32 @@ escapeAndParseURI t = fmap EscapedURI (wildcardHost <|> parse t)
           guard (uriScheme u == T.unpack s ++ ":" && not (null (uriRegName a)))
           return u { uriAuthority = Just a { uriRegName = "*." ++ uriRegName a } }
 
--- | Escapes Text to be a valid nonce value
+-- | Escapes Text to be a valid nonce value by keeping only base64 and
+-- base64url characters (and @=@ padding); everything else is dropped.
 escapedTextForNonce :: String -> EscapedText
-escapedTextForNonce = EscapedText . Prelude.filter notEscapable
+escapedTextForNonce = EscapedText . Prelude.filter isBase64Char
+  where isBase64Char c = (isAscii c && isAlphaNum c) || c `elem` ("+/-_=" :: String)
 
 -- | Escapes a Text value, returning a valid Nonce
 nonce :: Text -> Source
 nonce = Nonce . escapedTextForNonce . T.unpack
+
+newtype CspNonce = CspNonce Text
+
+-- | Returns a nonce for the current request: 18 bytes from the system's
+-- cryptographically secure random number generator, base64-encoded.
+-- Every call within the same request returns the same value, so it can be
+-- used both in the header and in the @nonce@ attribute of your tags.
+--
+-- > getExample :: Handler Html
+-- > getExample = do
+-- >   n <- getCspNonce
+-- >   cspPolicy [ScriptSrc (nonce n :| [])]
+-- >   defaultLayout [whamlet|<script nonce=#{n}>alert("hi");|]
+getCspNonce :: MonadHandler m => m Text
+getCspNonce = do
+  CspNonce n <- cached $ CspNonce . TE.decodeUtf8 . B64.encode <$> liftIO (getEntropy 18)
+  return n
 
 directiveListToHeader :: DirectiveList -> Text
 directiveListToHeader = T.intercalate "; " . fmap textDirective
@@ -157,7 +182,7 @@ wrap :: Text -> SourceList -> Text
 wrap k x = mconcat [k, " ", textSourceList x]
 
 textSourceList :: SourceList -> Text
-textSourceList = T.unwords . toList . filtered
+textSourceList = T.unwords . Prelude.filter (not . T.null) . toList . filtered
   where filtered = fmap textSource . filterOut
 
 -- * and none should be alone if present
@@ -167,7 +192,10 @@ filterOut x | None `elem` x = None :| []
             | otherwise = x
 
 -- | Represents a location from which assets may be loaded.
-data Source = Wildcard
+data Source = -- | @*@. Any other source in the same list is dropped, so
+              -- @Wildcard :| [UnsafeInline]@ renders as just @*@.
+              Wildcard
+              -- | @'none'@. Any other source in the same list is dropped.
               | None
               | Self
               | DataScheme
@@ -181,6 +209,7 @@ data Source = Wildcard
               | Nonce EscapedText
               -- | A base64 hash of an allowed inline script or style.
               | Hash HashAlgorithm Text
+              -- | Used internally by the @csp@ quasi-quoter for antiquotes; renders as nothing.
               | MetaSource Text deriving (Eq, Show, Data, Typeable)
 
 -- | Algorithm of a 'Hash' source.
@@ -232,18 +261,24 @@ data Directive = DefaultSrc SourceList
                  | FrameSrc SourceList
                  -- | Applies a sandbox to the result. <http://content-security-policy.com/ See here> for more info.
                  | Sandbox [SandboxOptions]
+                 -- | Deprecated in CSP Level 3 in favour of 'ReportTo', but still the
+                 -- only reporting directive some browsers support; send both.
                  | ReportUri EscapedURI
                  -- | CSP level 2 directives
                  | FrameAncestors SourceList
                  | ChildSrc SourceList
                  | FormAction SourceList
                  | BaseUri SourceList
+                 -- | Removed from the CSP specification and ignored by current browsers.
+                 -- Use @ObjectSrc (None :| [])@ to block plugins instead.
                  | PluginTypes MimeTypeList
                  -- | CSP level 3 directives
                  | WorkerSrc SourceList
                  | ManifestSrc SourceList
+                 -- | Removed from the CSP specification; browsers may ignore it.
                  | PrefetchSrc SourceList
                  -- | Names a reporting group defined by the @Reporting-Endpoints@ (or @Report-To@) response header.
+                 -- Characters that are not valid in an HTTP token are dropped when rendering.
                  | ReportTo Text
                  | UpgradeInsecureRequests
                  -- | @require-trusted-types-for 'script'@
@@ -307,7 +342,9 @@ textDirective (PluginTypes t) = mconcat ["plugin-types ", (T.unwords . fmap text
 textDirective (WorkerSrc x) = w "worker-src" x
 textDirective (ManifestSrc x) = w "manifest-src" x
 textDirective (PrefetchSrc x) = w "prefetch-src" x
-textDirective (ReportTo t) = mconcat ["report-to ", t]
+textDirective (ReportTo t) = mconcat ["report-to ", T.filter isTokenChar t]
+  -- RFC 9110 token; keeps ';', ',', whitespace and CR/LF from injecting directives or policies
+  where isTokenChar c = (isAscii c && isAlphaNum c) || c `elem` ("!#$%&'*+-.^_`|~" :: String)
 textDirective UpgradeInsecureRequests = "upgrade-insecure-requests"
 textDirective RequireTrustedTypesForScript = "require-trusted-types-for 'script'"
 textDirective (TrustedTypes []) = "trusted-types"

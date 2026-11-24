@@ -16,9 +16,14 @@
       system:
       let
         pkgs = import nixpkgs { inherit system; };
+        yesod-csp = pkgs.callPackage ./default.nix { nixpkgs = pkgs; };
       in
       {
-        packages.yesod-csp = pkgs.callPackage ./default.nix { nixpkgs = pkgs; };
+        packages.yesod-csp = yesod-csp;
+        packages.default = yesod-csp;
+        devShells.default = yesod-csp.env.overrideAttrs (old: {
+          nativeBuildInputs = old.nativeBuildInputs ++ [ pkgs.cabal-install ];
+        });
       }
     );
 }

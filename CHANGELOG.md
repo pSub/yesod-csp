@@ -10,6 +10,16 @@
 + Add `cspWarnings`, which lists risky combinations such as `data:` in `script-src`
 + `escapeAndParseURI` keeps a leading `*.` in the host, so wildcard subdomains such as `https://*.example.com` can be expressed
 
+## Version 0.2.9.0
+
++ Fix directive injection via `report-to`: characters that are not valid in an HTTP token are now dropped from the group name
++ Restrict nonces to base64 and base64url characters; commas, line breaks and other characters are now dropped
++ Escape commas in URIs so they can no longer split the header into several policies
++ Add `getCspNonce`, which returns a random nonce per request, and use it in the examples instead of a fixed nonce
++ Accept the standard quoted keywords `'unsafe-inline'`, `'unsafe-eval'` and `'strict-dynamic'` in the `csp` quasi-quoter
++ Stop rendering a trailing space for `MetaSource`
++ Document that `*` and `'none'` drop other sources, that `plugin-types` and `prefetch-src` are obsolete, and that `cspMiddleware` keeps headers set by handlers
+
 ## Version 0.2.8.0
 
 + Add support for CSP Level 3 directives: `report-to`, `worker-src`, `manifest-src` and `prefetch-src`

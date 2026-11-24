@@ -1,6 +1,7 @@
-{ mkDerivation, attoparsec, base, case-insensitive, hspec, lib
+{ mkDerivation, attoparsec, base, base64-bytestring, case-insensitive
+, entropy, hspec, lib
 , mono-traversable, network-uri, semigroups, syb, template-haskell
-, text, wai, yesod, yesod-core, yesod-test, mime
+, text, wai, wai-extra, yesod, yesod-core, yesod-test, mime
 }:
 mkDerivation {
   pname = "yesod-csp";
@@ -9,12 +10,13 @@ mkDerivation {
   isLibrary = true;
   isExecutable = false;
   libraryHaskellDepends = [
-    attoparsec base case-insensitive mono-traversable network-uri
+    attoparsec base base64-bytestring case-insensitive entropy
+    mono-traversable network-uri
     semigroups syb template-haskell text wai yesod yesod-core mime
   ];
   testHaskellDepends = [
-    attoparsec base hspec network-uri semigroups template-haskell yesod
-    yesod-test
+    attoparsec base hspec network-uri semigroups template-haskell text
+    wai-extra yesod yesod-test
   ];
   description = "Add CSP headers to Yesod apps";
   license = lib.licenses.mit;

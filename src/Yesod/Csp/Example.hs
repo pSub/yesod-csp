@@ -104,6 +104,8 @@ cdn :: Source
 cdn = Host (fromJust $ escapeAndParseURI "https://cdn.com")
 
 
+-- | Shows the literal nonce syntax only. A fixed nonce gives no protection;
+-- use 'getCspNonce' as in the examples below.
 getExample8R :: Handler Html
 getExample8R = do
   cspPolicy [csp|script-src 'nonce-foo'|]
@@ -114,19 +116,20 @@ getExample8R = do
 
 getExample9R :: Handler Html
 getExample9R = do
-  let n = "foo"
+  n <- getCspNonce
   cspPolicy [csp|script-src $nonce-n|]
   defaultLayout $ [whamlet|
-    <script nonce="foo">
+    <script nonce=#{n}>
       alert("ayyyy");
   |]
 
+-- | The script's nonce does not match the header, so the browser blocks it.
 getExample10R :: Handler Html
 getExample10R = do
-  let n = "bar"
+  n <- getCspNonce
   cspPolicy [csp|script-src $nonce-n|]
   defaultLayout $ [whamlet|
-    <script nonce="foo">
+    <script nonce="wrong">
       alert("ayyyy");
   |]
 
@@ -141,10 +144,10 @@ getExample11R = do
 
 getExample12R :: Handler Html
 getExample12R = do
-  let n = "foo"
+  n <- getCspNonce
   cspPolicy [csp|script-src strict-dynamic unsafe-inline $nonce-n|]
   defaultLayout $ [whamlet|
-    <script nonce="foo">
+    <script nonce=#{n}>
       alert("ayyyy");
   |]
 
