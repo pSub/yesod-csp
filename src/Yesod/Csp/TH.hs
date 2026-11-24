@@ -8,6 +8,9 @@ module Yesod.Csp.TH (
     , pluginTypes
     , sandbox
     , sandboxOptions
+    , upgradeInsecureRequests
+    , requireTrustedTypesFor
+    , trustedTypes
     , directive
     , csp
   ) where
@@ -194,6 +197,19 @@ sandboxOptions = allowForms
         allowSameOrigin = string "allow-same-origin" *> pure AllowSameOrigin
         allowTopNavigation = string "allow-top-navigation" *> pure AllowTopNavigation
 
+upgradeInsecureRequests :: Parser Directive
+upgradeInsecureRequests = string "upgrade-insecure-requests" *> pure UpgradeInsecureRequests
+
+requireTrustedTypesFor :: Parser Directive
+requireTrustedTypesFor = string "require-trusted-types-for" *> spaces *> string "'script'" *> pure RequireTrustedTypesForScript
+
+trustedTypes :: Parser Directive
+trustedTypes = do
+  _ <- string "trusted-types"
+  _ <- spaces
+  ns <- sepBy (takeWhile1 (not . separated)) (char ' ')
+  return $ TrustedTypes ns
+
 separator :: Parser ()
 separator = comma *> (spaces *> pure ())
   where comma = string ";"
@@ -201,3 +217,4 @@ separator = comma *> (spaces *> pure ())
 directive :: Parser DirectiveList
 directive = sepBy (spaces *> d) separator <* (spaces *> endOfInput)
   where d = withSourceList <|> reportUri <|> reportTo <|> pluginTypes <|> sandbox
+            <|> upgradeInsecureRequests <|> requireTrustedTypesFor <|> trustedTypes

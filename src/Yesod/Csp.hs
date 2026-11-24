@@ -211,6 +211,11 @@ data Directive = DefaultSrc SourceList
                  | PrefetchSrc SourceList
                  -- | Names a reporting group defined by the @Reporting-Endpoints@ (or @Report-To@) response header.
                  | ReportTo Text
+                 | UpgradeInsecureRequests
+                 -- | @require-trusted-types-for 'script'@
+                 | RequireTrustedTypesForScript
+                 -- | Allowed Trusted Types policy names, e.g. @[\"myPolicy\", \"'allow-duplicates'\"]@.
+                 | TrustedTypes [Text]
                  deriving (Eq, Show, Data, Typeable)
 
 
@@ -249,3 +254,9 @@ textDirective (WorkerSrc x) = w "worker-src" x
 textDirective (ManifestSrc x) = w "manifest-src" x
 textDirective (PrefetchSrc x) = w "prefetch-src" x
 textDirective (ReportTo t) = mconcat ["report-to ", t]
+textDirective UpgradeInsecureRequests = "upgrade-insecure-requests"
+textDirective RequireTrustedTypesForScript = "require-trusted-types-for 'script'"
+textDirective (TrustedTypes []) = "trusted-types"
+textDirective (TrustedTypes ns) = T.unwords ("trusted-types" : fmap (T.filter isPolicyChar) ns)
+  -- policy-name chars plus '*' and quotes for keywords; no ';', ',' or whitespace
+  where isPolicyChar c = isAscii c && (isAlphaNum c || c `elem` ("-#=_/@.%*'" :: String))

@@ -55,6 +55,10 @@ tests = yesodSpec Test $ do
       let header = getCspPolicy [ScriptSrc (Hash Sha256 "abc+/=" :| [UnsafeHashes, WasmUnsafeEval])]
       assertEq "level 3 sources" header "script-src 'sha256-abc+/=' 'unsafe-hashes' 'wasm-unsafe-eval'"
       assertEq "hash is filtered" (textSource (Hash Sha512 "x'; script-src *")) "'sha512-xscript-src'"
+    yit "works with upgrade-insecure-requests and trusted types" $ do
+      let header = getCspPolicy [UpgradeInsecureRequests, RequireTrustedTypesForScript, TrustedTypes ["foo", "'allow-duplicates'", "x; y"]]
+      assertEq "trusted types" header "upgrade-insecure-requests; require-trusted-types-for 'script'; trusted-types foo 'allow-duplicates' xy"
+      assertEq "no policies" (getCspPolicy [TrustedTypes []]) "trusted-types"
     yit "works with nonce-source" $ do
       let header = getCspPolicy [ScriptSrc (nonce "foo" :| [])]
       assertEq "basic nonce-source" header "script-src 'nonce-foo'"
@@ -122,6 +126,7 @@ tests = yesodSpec Test $ do
       assertEq "prefetch-src self" (parseOnly withSourceList "prefetch-src 'self'") (Right $ PrefetchSrc (Self :| []))
       assertEq "base-uri self" [csp|base-uri 'self'|] [BaseUri (Self :| [])]
       assertEq "level 3 sources th" [csp|script-src 'sha384-ab+c=' 'unsafe-hashes' 'wasm-unsafe-eval'|] [ScriptSrc (Hash Sha384 "ab+c=" :| [UnsafeHashes, WasmUnsafeEval])]
+      assertEq "level 3 directives th" [csp|upgrade-insecure-requests; require-trusted-types-for 'script'; trusted-types foo 'allow-duplicates'|] [UpgradeInsecureRequests, RequireTrustedTypesForScript, TrustedTypes ["foo", "'allow-duplicates'"]]
       assertEq "sandbox allow-forms allow-scripts" (parseOnly sandbox "sandbox allow-forms allow-scripts") (Right $ Sandbox [AllowForms, AllowScripts])
     yit "works with lists" $ do
       let resultHttps = [ImgSrc $ Self :| [Https], ScriptSrc $ Host (fromJust $ escapeAndParseURI "https://foo.com") :| []]
