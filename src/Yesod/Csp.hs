@@ -21,6 +21,7 @@ module Yesod.Csp (
 
 import           Codec.MIME.Type as Mime
 import qualified Data.CaseInsensitive as CI
+import           Data.Char          (isAlphaNum, isAscii)
 import           Data.Data          (Data)
 import           Data.List.NonEmpty
 import           Data.Text          (Text)
@@ -207,7 +208,10 @@ textDirective (FrameAncestors x) =  w "frame-ancestors" x
 textDirective (ChildSrc x) = w "child-src" x
 textDirective (FormAction x) = w "form-action" x
 textDirective (BaseUri t) = mconcat ["base-uri ", (T.pack . show) t]
-textDirective (PluginTypes t) = mconcat ["plugin-types ", (T.unwords . fmap Mime.showType . toList) t]
+textDirective (PluginTypes t) = mconcat ["plugin-types ", (T.unwords . fmap textMimeType . toList) t]
+  -- only type/subtype, restricted to RFC 6838 name chars, so ';', spaces and CR/LF cannot inject directives
+  where textMimeType = T.filter isMimeChar . Mime.showMIMEType . Mime.mimeType
+        isMimeChar c = isAscii c && (isAlphaNum c || c `elem` ("!#$&-^_.+/" :: String))
 textDirective (WorkerSrc x) = w "worker-src" x
 textDirective (ManifestSrc x) = w "manifest-src" x
 textDirective (PrefetchSrc x) = w "prefetch-src" x

@@ -5,6 +5,7 @@
 {-# LANGUAGE TypeFamilies          #-}
 
 import           Codec.MIME.Parse          (parseMIMEType)
+import           Codec.MIME.Type           (MIMEType (..), Type (..))
 import           Data.Attoparsec.Text
 import           Data.List.NonEmpty
 import           Data.Maybe
@@ -61,6 +62,11 @@ tests = yesodSpec Test $ do
       let dom = pure $ fromJust $ parseMIMEType "text/plain"
           header = getCspPolicy [PluginTypes dom]
       assertEq "plugin-types" header "plugin-types text/plain"
+    yit "plugin-types drops params and cannot inject directives" $ do
+      let evil = Type (Other "x" "y; script-src *\r\nX-Evil: injected") []
+          withParams = fromJust $ parseMIMEType "text/plain; charset=utf-8"
+          header = getCspPolicy [PluginTypes (evil :| [withParams])]
+      assertEq "plugin-types" header "plugin-types x/yscript-srcX-Evilinjected text/plain"
     yit "works with worker-src" $ do
       let header = getCspPolicy [WorkerSrc (Self :| [])]
       assertEq "worker-src" header "worker-src 'self'"
