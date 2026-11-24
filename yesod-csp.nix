@@ -5,7 +5,7 @@
 }:
 mkDerivation {
   pname = "yesod-csp";
-  version = "0.2.8.0";
+  version = "0.3.0.0";
   src = ./.;
   isLibrary = true;
   isExecutable = false;
