@@ -69,6 +69,12 @@ insertAt n x xs =
   let (h, t) = Prelude.splitAt n xs
   in h ++ x : t
 
+-- | A URI that is safe to put into a CSP header. Build it with 'escapeAndParseURI'.
+--
+-- The 'Data' instances of this type and of nonces exist only so the @csp@
+-- quasi-quoter can lift policies. Generic traversals (e.g. SYB's @everywhere@)
+-- can rewrite the strings inside them without escaping, so do not run them
+-- over a 'DirectiveList'.
 newtype EscapedURI = EscapedURI { uri :: URI } deriving (Eq, Data, Typeable)
 
 newtype EscapedText = EscapedText { text :: String } deriving (Eq, Data, Typeable)
