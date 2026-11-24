@@ -15,6 +15,7 @@ module Yesod.Csp (
   , Directive(..)
   , SourceList
   , Source(..)
+  , HashAlgorithm(..)
   , SandboxOptions(..)
   , textSource
   ) where
@@ -141,8 +142,15 @@ data Source = Wildcard
               | UnsafeInline
               | UnsafeEval
               | StrictDynamic
+              | UnsafeHashes
+              | WasmUnsafeEval
               | Nonce EscapedText
+              -- | A base64 hash of an allowed inline script or style.
+              | Hash HashAlgorithm Text
               | MetaSource Text deriving (Eq, Show, Data, Typeable)
+
+-- | Algorithm of a 'Hash' source.
+data HashAlgorithm = Sha256 | Sha384 | Sha512 deriving (Eq, Show, Data, Typeable)
 
 -- | A list of allowed sources for a directive.
 type SourceList = NonEmpty Source
@@ -157,6 +165,14 @@ textSource Https = "https:"
 textSource UnsafeInline = "'unsafe-inline'"
 textSource UnsafeEval = "'unsafe-eval'"
 textSource StrictDynamic = "'strict-dynamic'"
+textSource UnsafeHashes = "'unsafe-hashes'"
+textSource WasmUnsafeEval = "'wasm-unsafe-eval'"
+textSource (Hash a h) = mconcat ["'", alg a, "-", T.filter isBase64Char h, "'"]
+  where alg Sha256 = "sha256"
+        alg Sha384 = "sha384"
+        alg Sha512 = "sha512"
+        -- filtered on render, so no hash value can inject quotes or directives
+        isBase64Char c = isAscii c && (isAlphaNum c || c `elem` ("+/=-_" :: String))
 textSource (MetaSource _) = ""
 textSource (Nonce x) = (T.pack . show) x
 

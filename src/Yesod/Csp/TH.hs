@@ -54,6 +54,9 @@ source = wildcard
          <|> self
          <|> dataScheme
          <|> https
+         <|> unsafeHashes
+         <|> wasmUnsafeEval
+         <|> hash
          <|> host
          <|> unsafeInline
          <|> unsafeEval
@@ -72,6 +75,15 @@ source = wildcard
           n <- takeTill (== '\'')
           _ <- char '\''
           return $ nonce n
+        unsafeHashes = string "'unsafe-hashes'" *> pure UnsafeHashes
+        wasmUnsafeEval = string "'wasm-unsafe-eval'" *> pure WasmUnsafeEval
+        hash = do
+          _ <- char '\''
+          a <- (string "sha256" *> pure Sha256) <|> (string "sha384" *> pure Sha384) <|> (string "sha512" *> pure Sha512)
+          _ <- char '-'
+          h <- takeTill (== '\'')
+          _ <- char '\''
+          return $ Hash a h
         host :: Parser Source
         host = do
           u <- takeTill separated
