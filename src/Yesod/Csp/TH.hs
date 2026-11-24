@@ -114,6 +114,7 @@ withSourceList = defaultSrc
                  <|> workerSrc
                  <|> manifestSrc
                  <|> prefetchSrc
+                 <|> baseUri
   where defaultSrc = d "default-src" DefaultSrc
         scriptSrc = d "script-src" ScriptSrc
         styleSrc = d "style-src" StyleSrc
@@ -129,6 +130,7 @@ withSourceList = defaultSrc
         workerSrc = d "worker-src" WorkerSrc
         manifestSrc = d "manifest-src" ManifestSrc
         prefetchSrc = d "prefetch-src" PrefetchSrc
+        baseUri = d "base-uri" BaseUri
         d x y = string x >> s >> slist >>= mkWithSource y
         slist = sepBy1 source (char ' ')
         s = spaces
@@ -153,15 +155,6 @@ reportTo = do
   if T.null g
     then fail "reportTo" -- n.b. compile time error
     else return $ ReportTo g
-
-baseUri :: Parser Directive
-baseUri = do
-  _ <- string "base-uri"
-  _ <- spaces
-  u <- takeTill separated
-  case escapeAndParseURI u of
-    Nothing -> fail "baseUri" -- n.b. compile time error
-    Just uri -> return $ BaseUri uri
 
 pluginTypes :: Parser Directive
 pluginTypes = do
@@ -195,4 +188,4 @@ separator = comma *> (spaces *> pure ())
 
 directive :: Parser DirectiveList
 directive = sepBy (spaces *> d) separator <* (spaces *> endOfInput)
-  where d = withSourceList <|> reportUri <|> reportTo <|> baseUri <|> pluginTypes <|> sandbox
+  where d = withSourceList <|> reportUri <|> reportTo <|> pluginTypes <|> sandbox

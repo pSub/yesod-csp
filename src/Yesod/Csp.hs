@@ -170,7 +170,7 @@ data Directive = DefaultSrc SourceList
                  | FrameAncestors SourceList
                  | ChildSrc SourceList
                  | FormAction SourceList
-                 | BaseUri EscapedURI
+                 | BaseUri SourceList
                  | PluginTypes MimeTypeList
                  -- | CSP level 3 directives
                  | WorkerSrc SourceList
@@ -207,7 +207,7 @@ textDirective (Sandbox s) = mconcat ["sandbox ", T.unwords . fmap textSandbox $ 
 textDirective (FrameAncestors x) =  w "frame-ancestors" x
 textDirective (ChildSrc x) = w "child-src" x
 textDirective (FormAction x) = w "form-action" x
-textDirective (BaseUri t) = mconcat ["base-uri ", (T.pack . show) t]
+textDirective (BaseUri x) = w "base-uri" x
 textDirective (PluginTypes t) = mconcat ["plugin-types ", (T.unwords . fmap textMimeType . toList) t]
   -- only type/subtype, restricted to RFC 6838 name chars, so ';', spaces and CR/LF cannot inject directives
   where textMimeType = T.filter isMimeChar . Mime.showMIMEType . Mime.mimeType

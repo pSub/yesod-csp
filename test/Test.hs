@@ -67,6 +67,9 @@ tests = yesodSpec Test $ do
           withParams = fromJust $ parseMIMEType "text/plain; charset=utf-8"
           header = getCspPolicy [PluginTypes (evil :| [withParams])]
       assertEq "plugin-types" header "plugin-types x/yscript-srcX-Evilinjected text/plain"
+    yit "works with base-uri" $ do
+      let header = getCspPolicy [BaseUri (None :| [])]
+      assertEq "base-uri" header "base-uri 'none'"
     yit "works with worker-src" $ do
       let header = getCspPolicy [WorkerSrc (Self :| [])]
       assertEq "worker-src" header "worker-src 'self'"
@@ -107,6 +110,7 @@ tests = yesodSpec Test $ do
       assertEq "worker-src self" (parseOnly withSourceList "worker-src 'self'") (Right $ WorkerSrc (Self :| []))
       assertEq "manifest-src self" (parseOnly withSourceList "manifest-src 'self'") (Right $ ManifestSrc (Self :| []))
       assertEq "prefetch-src self" (parseOnly withSourceList "prefetch-src 'self'") (Right $ PrefetchSrc (Self :| []))
+      assertEq "base-uri self" [csp|base-uri 'self'|] [BaseUri (Self :| [])]
       assertEq "sandbox allow-forms allow-scripts" (parseOnly sandbox "sandbox allow-forms allow-scripts") (Right $ Sandbox [AllowForms, AllowScripts])
     yit "works with lists" $ do
       let resultHttps = [ImgSrc $ Self :| [Https], ScriptSrc $ Host (fromJust $ escapeAndParseURI "https://foo.com") :| []]
