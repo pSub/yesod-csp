@@ -9,6 +9,7 @@ module Yesod.Csp (
   , getCspPolicy
   , cspMiddleware
   , cspMiddlewareReportOnly
+  , cspWarnings
   , EscapedURI
   , escapeAndParseURI
   , escapedTextForNonce
@@ -78,6 +79,25 @@ headerMiddleware name = addHeaderMiddleware . mkHeader . directiveListToHeader
   where
     addHeaderMiddleware = modifyResponse . mapResponseHeaders . insertAt 5
     mkHeader dltext = (CI.mk $ TE.encodeUtf8 name, TE.encodeUtf8 dltext)
+
+-- | Lists risky combinations in a policy that are allowed but weaken it,
+-- e.g. @data:@ in @script-src@. Returns an empty list if none are found.
+cspWarnings :: DirectiveList -> [Text]
+cspWarnings ds = Prelude.concatMap warn ds
+  where
+    warn (ScriptSrc x) = scriptWarnings "script-src" x
+    warn (DefaultSrc x) | not (Prelude.any isScriptSrc ds) = scriptWarnings "default-src" x
+    warn (Sandbox o) | AllowScripts `elem` o && AllowSameOrigin `elem` o =
+      ["sandbox: allow-scripts with allow-same-origin lets the framed page remove its own sandbox"]
+    warn _ = []
+    scriptWarnings k x =
+      [k <> ": data: allows scripts from data: URIs" | DataScheme `elem` x]
+      ++ [k <> ": 'unsafe-inline' without a nonce or hash allows inline scripts" | UnsafeInline `elem` x, not (Prelude.any isNonceOrHash x)]
+    isScriptSrc (ScriptSrc _) = True
+    isScriptSrc _ = False
+    isNonceOrHash (Nonce _) = True
+    isNonceOrHash (Hash _ _) = True
+    isNonceOrHash _ = False
 
 insertAt :: Int -> a -> [a] -> [a]
 insertAt n x xs =

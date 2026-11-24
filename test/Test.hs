@@ -65,6 +65,13 @@ tests = yesodSpec Test $ do
       let header = getCspPolicy [UpgradeInsecureRequests, RequireTrustedTypesForScript, TrustedTypes ["foo", "'allow-duplicates'", "x; y"]]
       assertEq "trusted types" header "upgrade-insecure-requests; require-trusted-types-for 'script'; trusted-types foo 'allow-duplicates' xy"
       assertEq "no policies" (getCspPolicy [TrustedTypes []]) "trusted-types"
+    yit "warns about risky combinations" $ do
+      assertEq "data: in script-src" (cspWarnings [ScriptSrc (Self :| [DataScheme])]) ["script-src: data: allows scripts from data: URIs"]
+      assertEq "default-src counts when no script-src" (Prelude.length (cspWarnings [DefaultSrc (UnsafeInline :| [])])) 1
+      assertEq "default-src ignored with script-src" (cspWarnings [DefaultSrc (UnsafeInline :| []), ScriptSrc (Self :| [])]) []
+      assertEq "unsafe-inline with nonce" (cspWarnings [ScriptSrc (UnsafeInline :| [nonce "abc"])]) []
+      assertEq "sandbox" (Prelude.length (cspWarnings [Sandbox [AllowScripts, AllowSameOrigin]])) 1
+      assertEq "safe policy" (cspWarnings [ScriptSrc (Self :| []), Sandbox [AllowScripts]]) []
     yit "works with nonce-source" $ do
       let header = getCspPolicy [ScriptSrc (nonce "foo" :| [])]
       assertEq "basic nonce-source" header "script-src 'nonce-foo'"
