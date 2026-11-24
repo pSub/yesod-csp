@@ -5,6 +5,7 @@
 + **Breaking:** `BaseUri` now takes a `SourceList` instead of an `EscapedURI`, so `base-uri 'none'` and `base-uri 'self'` can be expressed
 + Add hash sources, `'unsafe-hashes'` and `'wasm-unsafe-eval'`
 + Add `upgrade-insecure-requests`, `require-trusted-types-for` and `trusted-types`
++ Add the remaining sandbox flags, such as `allow-popups` and `allow-modals`
 + `escapeAndParseURI` keeps a leading `*.` in the host, so wildcard subdomains such as `https://*.example.com` can be expressed
 
 ## Version 0.2.8.0

@@ -223,7 +223,17 @@ data Directive = DefaultSrc SourceList
 data SandboxOptions = AllowForms
                       | AllowScripts
                       | AllowSameOrigin
-                      | AllowTopNavigation deriving (Eq, Show, Data, Typeable)
+                      | AllowTopNavigation
+                      | AllowDownloads
+                      | AllowModals
+                      | AllowOrientationLock
+                      | AllowPointerLock
+                      | AllowPopups
+                      | AllowPopupsToEscapeSandbox
+                      | AllowPresentation
+                      | AllowStorageAccessByUserActivation
+                      | AllowTopNavigationByUserActivation
+                      | AllowTopNavigationToCustomProtocols deriving (Eq, Show, Data, Typeable)
 
 textDirective :: Directive -> Text
 textDirective (DefaultSrc x) = w "default-src" x
@@ -242,6 +252,16 @@ textDirective (Sandbox s) = mconcat ["sandbox ", T.unwords . fmap textSandbox $ 
         textSandbox AllowScripts = "allow-scripts"
         textSandbox AllowSameOrigin = "allow-same-origin"
         textSandbox AllowTopNavigation = "allow-top-navigation"
+        textSandbox AllowDownloads = "allow-downloads"
+        textSandbox AllowModals = "allow-modals"
+        textSandbox AllowOrientationLock = "allow-orientation-lock"
+        textSandbox AllowPointerLock = "allow-pointer-lock"
+        textSandbox AllowPopups = "allow-popups"
+        textSandbox AllowPopupsToEscapeSandbox = "allow-popups-to-escape-sandbox"
+        textSandbox AllowPresentation = "allow-presentation"
+        textSandbox AllowStorageAccessByUserActivation = "allow-storage-access-by-user-activation"
+        textSandbox AllowTopNavigationByUserActivation = "allow-top-navigation-by-user-activation"
+        textSandbox AllowTopNavigationToCustomProtocols = "allow-top-navigation-to-custom-protocols"
 textDirective (FrameAncestors x) =  w "frame-ancestors" x
 textDirective (ChildSrc x) = w "child-src" x
 textDirective (FormAction x) = w "form-action" x

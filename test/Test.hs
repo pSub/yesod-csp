@@ -127,6 +127,7 @@ tests = yesodSpec Test $ do
       assertEq "base-uri self" [csp|base-uri 'self'|] [BaseUri (Self :| [])]
       assertEq "level 3 sources th" [csp|script-src 'sha384-ab+c=' 'unsafe-hashes' 'wasm-unsafe-eval'|] [ScriptSrc (Hash Sha384 "ab+c=" :| [UnsafeHashes, WasmUnsafeEval])]
       assertEq "level 3 directives th" [csp|upgrade-insecure-requests; require-trusted-types-for 'script'; trusted-types foo 'allow-duplicates'|] [UpgradeInsecureRequests, RequireTrustedTypesForScript, TrustedTypes ["foo", "'allow-duplicates'"]]
+      assertEq "sandbox prefixes" (parseOnly sandbox "sandbox allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation allow-popups") (Right $ Sandbox [AllowPopupsToEscapeSandbox, AllowTopNavigationByUserActivation, AllowPopups])
       assertEq "sandbox allow-forms allow-scripts" (parseOnly sandbox "sandbox allow-forms allow-scripts") (Right $ Sandbox [AllowForms, AllowScripts])
     yit "works with lists" $ do
       let resultHttps = [ImgSrc $ Self :| [Https], ScriptSrc $ Host (fromJust $ escapeAndParseURI "https://foo.com") :| []]

@@ -188,14 +188,23 @@ sandbox = do
   return $ Sandbox x
 
 sandboxOptions :: Parser SandboxOptions
-sandboxOptions = allowForms
-                 <|> allowScripts
-                 <|> allowSameOrigin
-                 <|> allowTopNavigation
-  where allowForms = string "allow-forms" *> pure AllowForms
-        allowScripts = string "allow-scripts" *> pure AllowScripts
-        allowSameOrigin = string "allow-same-origin" *> pure AllowSameOrigin
-        allowTopNavigation = string "allow-top-navigation" *> pure AllowTopNavigation
+-- longer names first, where one is a prefix of another
+sandboxOptions = choice $ fmap (\(n, o) -> string n *> pure o)
+  [ ("allow-forms", AllowForms)
+  , ("allow-scripts", AllowScripts)
+  , ("allow-same-origin", AllowSameOrigin)
+  , ("allow-top-navigation-by-user-activation", AllowTopNavigationByUserActivation)
+  , ("allow-top-navigation-to-custom-protocols", AllowTopNavigationToCustomProtocols)
+  , ("allow-top-navigation", AllowTopNavigation)
+  , ("allow-downloads", AllowDownloads)
+  , ("allow-modals", AllowModals)
+  , ("allow-orientation-lock", AllowOrientationLock)
+  , ("allow-pointer-lock", AllowPointerLock)
+  , ("allow-popups-to-escape-sandbox", AllowPopupsToEscapeSandbox)
+  , ("allow-popups", AllowPopups)
+  , ("allow-presentation", AllowPresentation)
+  , ("allow-storage-access-by-user-activation", AllowStorageAccessByUserActivation)
+  ]
 
 upgradeInsecureRequests :: Parser Directive
 upgradeInsecureRequests = string "upgrade-insecure-requests" *> pure UpgradeInsecureRequests
