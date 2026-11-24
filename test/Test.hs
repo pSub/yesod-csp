@@ -19,6 +19,7 @@ data Test = Test
 mkYesod "Test" [parseRoutes|
 / HomeR GET
 /nocsp NoCspR GET
+/reportonly ReportOnlyR GET
 |]
 
 instance Yesod Test
@@ -26,6 +27,11 @@ instance Yesod Test
 getHomeR :: Handler Html
 getHomeR = do
   cspPolicy [ScriptSrc (Self :| []), StyleSrc (Https :| [Self])]
+  defaultLayout [whamlet|hello|]
+
+getReportOnlyR :: Handler Html
+getReportOnlyR = do
+  cspPolicyReportOnly [ScriptSrc (Self :| [])]
   defaultLayout [whamlet|hello|]
 
 getNoCspR :: Handler Html
@@ -96,10 +102,13 @@ tests = yesodSpec Test $ do
     yit "works with report-to" $ do
       let header = getCspPolicy [ReportTo "csp-endpoint"]
       assertEq "report-to" header "report-to csp-endpoint"
-  ydescribe "Headers" $
+  ydescribe "Headers" $ do
     yit "get set" $ do
       get HomeR
       assertHeader "Content-Security-Policy" "script-src 'self'; style-src https: 'self'"
+    yit "report-only" $ do
+      get ReportOnlyR
+      assertHeader "Content-Security-Policy-Report-Only" "script-src 'self'"
   ydescribe "Sandboxes" $ do
     yit "works when empty" $ do
       let header = getCspPolicy [Sandbox []]
@@ -158,6 +167,7 @@ middlewareTest = yesodSpecApp Test getApp $ do
     yit "works" $ do
       get NoCspR
       assertHeader "Content-Security-Policy" "frame-ancestors 'self'"
+      assertHeader "Content-Security-Policy-Report-Only" "upgrade-insecure-requests"
   where
-    getApp = cspMiddleware [FrameAncestors (Self :| [])] <$>
+    getApp = cspMiddleware [FrameAncestors (Self :| [])] . cspMiddlewareReportOnly [UpgradeInsecureRequests] <$>
              toWaiAppPlain Test

@@ -6,6 +6,7 @@
 + Add hash sources, `'unsafe-hashes'` and `'wasm-unsafe-eval'`
 + Add `upgrade-insecure-requests`, `require-trusted-types-for` and `trusted-types`
 + Add the remaining sandbox flags, such as `allow-popups` and `allow-modals`
++ Add `cspPolicyReportOnly` and `cspMiddlewareReportOnly` for `Content-Security-Policy-Report-Only`
 + `escapeAndParseURI` keeps a leading `*.` in the host, so wildcard subdomains such as `https://*.example.com` can be expressed
 
 ## Version 0.2.8.0

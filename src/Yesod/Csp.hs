@@ -5,8 +5,10 @@
 -- This helps reduce the risk of exposure to XSS and bad assets.
 module Yesod.Csp (
   cspPolicy
+  , cspPolicyReportOnly
   , getCspPolicy
   , cspMiddleware
+  , cspMiddlewareReportOnly
   , EscapedURI
   , escapeAndParseURI
   , escapedTextForNonce
@@ -49,8 +51,14 @@ import           Network.Wai        (Middleware, mapResponseHeaders,
 cspPolicy :: (MonadHandler m) => DirectiveList -> m ()
 cspPolicy = addHeader cspHeaderName . directiveListToHeader
 
-cspHeaderName :: Text
+-- | Like 'cspPolicy', but adds a "Content-Security-Policy-Report-Only" header:
+-- violations are only reported, not blocked.
+cspPolicyReportOnly :: (MonadHandler m) => DirectiveList -> m ()
+cspPolicyReportOnly = addHeader cspReportOnlyHeaderName . directiveListToHeader
+
+cspHeaderName, cspReportOnlyHeaderName :: Text
 cspHeaderName = "Content-Security-Policy"
+cspReportOnlyHeaderName = "Content-Security-Policy-Report-Only"
 
 -- | Returns a generated Content-Security-Policy header.
 getCspPolicy :: DirectiveList -> Text
@@ -59,11 +67,17 @@ getCspPolicy = directiveListToHeader
 -- | Creates a WAI 'Middleware' to add a Content-Security-Policy
 -- header to every response.
 cspMiddleware :: DirectiveList -> Middleware
-cspMiddleware = addHeaderMiddleware . mkHeader . directiveListToHeader
+cspMiddleware = headerMiddleware cspHeaderName
+
+-- | Like 'cspMiddleware', but adds a "Content-Security-Policy-Report-Only" header.
+cspMiddlewareReportOnly :: DirectiveList -> Middleware
+cspMiddlewareReportOnly = headerMiddleware cspReportOnlyHeaderName
+
+headerMiddleware :: Text -> DirectiveList -> Middleware
+headerMiddleware name = addHeaderMiddleware . mkHeader . directiveListToHeader
   where
     addHeaderMiddleware = modifyResponse . mapResponseHeaders . insertAt 5
-    mkHeader dltext = (cspHeaderNameBS, TE.encodeUtf8 dltext)
-    cspHeaderNameBS = CI.mk $ TE.encodeUtf8 cspHeaderName
+    mkHeader dltext = (CI.mk $ TE.encodeUtf8 name, TE.encodeUtf8 dltext)
 
 insertAt :: Int -> a -> [a] -> [a]
 insertAt n x xs =
