@@ -45,6 +45,12 @@ tests = yesodSpec Test $ do
       let dom = fromJust $ escapeAndParseURI "https://foo.com/bar *"
           header = getCspPolicy [ScriptSrc (Host dom :| [])]
       assertEq "foo.com script-src" header "script-src https://foo.com/bar%20%2A"
+    yit "works with wildcard subdomains" $ do
+      let header = getCspPolicy [ScriptSrc (Host (fromJust $ escapeAndParseURI "https://*.foo.com:443/x") :| [])]
+      assertEq "wildcard subdomain" header "script-src https://*.foo.com:443/x"
+      assertEq "wildcard only at host start" (show <$> escapeAndParseURI "https://foo.com/a://*.b") (Just "https://foo.com/a://%2A.b")
+      assertEq "bare wildcard host stays escaped" (show <$> escapeAndParseURI "https://*") (Just "https://%2A")
+      assertEq "wildcard in quasi-quoter" [csp|script-src https://*.foo.com|] [ScriptSrc (Host (fromJust $ escapeAndParseURI "https://*.foo.com") :| [])]
     yit "works with nonce-source" $ do
       let header = getCspPolicy [ScriptSrc (nonce "foo" :| [])]
       assertEq "basic nonce-source" header "script-src 'nonce-foo'"

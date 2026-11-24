@@ -20,6 +20,8 @@ module Yesod.Csp (
   ) where
 
 import           Codec.MIME.Type as Mime
+import           Control.Applicative ((<|>))
+import           Control.Monad      (guard)
 import qualified Data.CaseInsensitive as CI
 import           Data.Char          (isAlphaNum, isAscii)
 import           Data.Data          (Data)
@@ -83,9 +85,18 @@ toEscape = ";'* "
 notEscapable :: Char -> Bool
 notEscapable = not . flip elem toEscape
 
--- | Escapes ';' '\'' and ' ', and parses to URI
+-- | Escapes ';' '\'' '*' and ' ', and parses to URI.
+-- A leading @*.@ in the host is kept as a wildcard subdomain, e.g. @https://*.example.com@.
 escapeAndParseURI :: Text -> Maybe EscapedURI
-escapeAndParseURI = fmap EscapedURI . parseURI . escapeURIString notEscapable . T.unpack
+escapeAndParseURI t = fmap EscapedURI (wildcardHost <|> parse t)
+  where parse = parseURI . escapeURIString notEscapable . T.unpack
+        wildcardHost = do
+          let (s, r) = T.breakOn "://*." t
+          u <- parse (s <> "://" <> T.drop 5 r)
+          a <- uriAuthority u
+          -- the "://*." must directly follow the scheme, not appear later in the URI
+          guard (uriScheme u == T.unpack s ++ ":" && not (null (uriRegName a)))
+          return u { uriAuthority = Just a { uriRegName = "*." ++ uriRegName a } }
 
 -- | Escapes Text to be a valid nonce value
 escapedTextForNonce :: String -> EscapedText

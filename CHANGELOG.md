@@ -3,6 +3,7 @@
 ## Unreleased
 
 + **Breaking:** `BaseUri` now takes a `SourceList` instead of an `EscapedURI`, so `base-uri 'none'` and `base-uri 'self'` can be expressed
++ `escapeAndParseURI` keeps a leading `*.` in the host, so wildcard subdomains such as `https://*.example.com` can be expressed
 
 ## Version 0.2.8.0
 
