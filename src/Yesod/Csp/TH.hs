@@ -95,13 +95,8 @@ source = wildcard
 separated :: Char -> Bool
 separated x = x == ';' || x == ' '
 
--- Safe to head and tail these sources as they come from the `sepBy1` combinator
-mkWithSource :: (NonEmpty Source -> Directive) -> [Source] -> Parser Directive
-mkWithSource f x = pure $ f (head x :| tail x)
-
 withSourceList :: Parser Directive
 withSourceList = defaultSrc
-                 <|> scriptSrc
                  <|> scriptSrc
                  <|> styleSrc
                  <|> imgSrc
@@ -131,17 +126,13 @@ withSourceList = defaultSrc
         workerSrc = d "worker-src" WorkerSrc
         manifestSrc = d "manifest-src" ManifestSrc
         prefetchSrc = d "prefetch-src" PrefetchSrc
-        d x y = string x >> s >> slist >>= mkWithSource y
-        slist = sepBy1 source (char ' ')
-        s = spaces
-
-spaces :: Parser ()
-spaces = many space *> pure ()
+        d x y = string x >> skipSpace >> y <$> slist
+        slist = (:|) <$> source <*> many (char ' ' *> source)
 
 reportUri :: Parser Directive
 reportUri = do
   _ <- string "report-uri"
-  _ <- spaces
+  skipSpace
   u <- takeTill separated
   case escapeAndParseAnyURI u of
     Nothing -> fail "reportUri" -- n.b. compile time error
@@ -150,7 +141,7 @@ reportUri = do
 reportTo :: Parser Directive
 reportTo = do
   _ <- string "report-to"
-  _ <- spaces
+  skipSpace
   g <- takeTill separated
   if T.null g
     then fail "reportTo" -- n.b. compile time error
@@ -159,7 +150,7 @@ reportTo = do
 baseUri :: Parser Directive
 baseUri = do
   _ <- string "base-uri"
-  _ <- spaces
+  skipSpace
   u <- takeTill separated
   case escapeAndParseAnyURI u of
     Nothing -> fail "baseUri" -- n.b. compile time error
@@ -168,7 +159,7 @@ baseUri = do
 pluginTypes :: Parser Directive
 pluginTypes = do
   _ <- string "plugin-types"
-  _ <- spaces
+  skipSpace
   u <- takeTill separated
   case parseMIMEType u of
     Nothing -> fail "plugin-types" -- n.b. compile time error
@@ -177,8 +168,8 @@ pluginTypes = do
 sandbox :: Parser Directive
 sandbox = do
   _ <- string "sandbox"
-  _ <- spaces
-  x <- sepBy sandboxOptions spaces
+  skipSpace
+  x <- sepBy sandboxOptions skipSpace
   return $ Sandbox x
 
 sandboxOptions :: Parser SandboxOptions
@@ -192,9 +183,8 @@ sandboxOptions = allowForms
         allowTopNavigation = string "allow-top-navigation" *> pure AllowTopNavigation
 
 separator :: Parser ()
-separator = comma *> (spaces *> pure ())
-  where comma = string ";"
+separator = char ';' *> skipSpace
 
 directive :: Parser DirectiveList
-directive = sepBy (spaces *> d) separator <* (spaces *> endOfInput)
+directive = sepBy (skipSpace *> d) separator <* (skipSpace *> endOfInput)
   where d = withSourceList <|> reportUri <|> reportTo <|> baseUri <|> pluginTypes <|> sandbox
