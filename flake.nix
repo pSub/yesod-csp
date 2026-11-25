@@ -16,7 +16,7 @@
       system:
       let
         pkgs = import nixpkgs { inherit system; };
-        yesod-csp = pkgs.callPackage ./default.nix { nixpkgs = pkgs; };
+        yesod-csp = pkgs.haskell.packages.ghc910.callCabal2nix "yesod-csp" ./. { };
       in
       {
         packages.yesod-csp = yesod-csp;

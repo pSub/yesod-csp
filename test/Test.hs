@@ -101,6 +101,11 @@ tests = yesodSpec Test $ do
     yit "strips non-base64 characters from nonces" $ do
       let header = getCspPolicy [ScriptSrc (nonce "a,b\r\nX-Injected: yes; 'c'" :| [])]
       assertEq "nonce injection" header "script-src 'nonce-abX-Injectedyesc'"
+    yit "rejects URIs without a host or with other schemes" $ do
+      assertEq "scheme-only and hostless URIs"
+        (fmap escapeAndParseURI ["https:", "data:", "blob:", "javascript:alert(1)", "file:///etc/passwd", "https:///x"])
+        (replicate 6 Nothing)
+      assertEq "ws host" (show <$> escapeAndParseURI "wss://foo.com") (Just "wss://foo.com")
     yit "works with report_uri" $ do
       let dom = fromJust $ escapeAndParseURI "https://foo.com"
           header = getCspPolicy [ReportUri dom]
@@ -212,6 +217,8 @@ tests = yesodSpec Test $ do
       assertEq "with th" [csp|img-src 'self' https:;  script-src https://foo.com|] result
       let url = fromJust $ escapeAndParseURI "https://foo.com"
       assertEq "with antiquoting" [csp|img-src 'self' https:; script-src $url|] result
+    yit "keeps scheme-only sources in th" $
+      assertEq "blob: in th" (getCspPolicy [csp|img-src blob:|]) "img-src blob:"
     yit "works with quoted keywords and th" $ do
       let result = [ScriptSrc $ Self :| [UnsafeInline, StrictDynamic]]
       assertEq "quoted keywords" [csp|script-src 'self' 'unsafe-inline' 'strict-dynamic'|] result

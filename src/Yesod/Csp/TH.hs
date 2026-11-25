@@ -90,7 +90,7 @@ source = wildcard
         host :: Parser Source
         host = do
           u <- takeTill separated
-          case escapeAndParseURI u of
+          case escapeAndParseAnyURI u of
             Nothing -> fail "host"
             Just uri -> return $ Host uri
         https = do
@@ -110,13 +110,8 @@ source = wildcard
 separated :: Char -> Bool
 separated x = x == ';' || x == ' '
 
--- Safe to head and tail these sources as they come from the `sepBy1` combinator
-mkWithSource :: (NonEmpty Source -> Directive) -> [Source] -> Parser Directive
-mkWithSource f x = pure $ f (head x :| tail x)
-
 withSourceList :: Parser Directive
 withSourceList = defaultSrc
-                 <|> scriptSrc
                  <|> scriptSrc
                  <|> styleSrc
                  <|> imgSrc
@@ -148,26 +143,22 @@ withSourceList = defaultSrc
         manifestSrc = d "manifest-src" ManifestSrc
         prefetchSrc = d "prefetch-src" PrefetchSrc
         baseUri = d "base-uri" BaseUri
-        d x y = string x >> s >> slist >>= mkWithSource y
-        slist = sepBy1 source (char ' ')
-        s = spaces
-
-spaces :: Parser ()
-spaces = many space *> pure ()
+        d x y = string x >> skipSpace >> y <$> slist
+        slist = (:|) <$> source <*> many (char ' ' *> source)
 
 reportUri :: Parser Directive
 reportUri = do
   _ <- string "report-uri"
-  _ <- spaces
+  skipSpace
   u <- takeTill separated
-  case escapeAndParseURI u of
+  case escapeAndParseAnyURI u of
     Nothing -> fail "reportUri" -- n.b. compile time error
     Just uri -> return $ ReportUri uri
 
 reportTo :: Parser Directive
 reportTo = do
   _ <- string "report-to"
-  _ <- spaces
+  skipSpace
   g <- takeTill separated
   if T.null g
     then fail "reportTo" -- n.b. compile time error
@@ -176,7 +167,7 @@ reportTo = do
 pluginTypes :: Parser Directive
 pluginTypes = do
   _ <- string "plugin-types"
-  _ <- spaces
+  skipSpace
   u <- takeTill separated
   case parseMIMEType u of
     Nothing -> fail "plugin-types" -- n.b. compile time error
@@ -185,8 +176,8 @@ pluginTypes = do
 sandbox :: Parser Directive
 sandbox = do
   _ <- string "sandbox"
-  _ <- spaces
-  x <- sepBy sandboxOptions spaces
+  skipSpace
+  x <- sepBy sandboxOptions skipSpace
   return $ Sandbox x
 
 sandboxOptions :: Parser SandboxOptions
@@ -212,20 +203,19 @@ upgradeInsecureRequests :: Parser Directive
 upgradeInsecureRequests = string "upgrade-insecure-requests" *> pure UpgradeInsecureRequests
 
 requireTrustedTypesFor :: Parser Directive
-requireTrustedTypesFor = string "require-trusted-types-for" *> spaces *> string "'script'" *> pure RequireTrustedTypesForScript
+requireTrustedTypesFor = string "require-trusted-types-for" *> skipSpace *> string "'script'" *> pure RequireTrustedTypesForScript
 
 trustedTypes :: Parser Directive
 trustedTypes = do
   _ <- string "trusted-types"
-  _ <- spaces
+  skipSpace
   ns <- sepBy (takeWhile1 (not . separated)) (char ' ')
   return $ TrustedTypes ns
 
 separator :: Parser ()
-separator = comma *> (spaces *> pure ())
-  where comma = string ";"
+separator = char ';' *> skipSpace
 
 directive :: Parser DirectiveList
-directive = sepBy (spaces *> d) separator <* (spaces *> endOfInput)
+directive = sepBy (skipSpace *> d) separator <* (skipSpace *> endOfInput)
   where d = withSourceList <|> reportUri <|> reportTo <|> pluginTypes <|> sandbox
             <|> upgradeInsecureRequests <|> requireTrustedTypesFor <|> trustedTypes

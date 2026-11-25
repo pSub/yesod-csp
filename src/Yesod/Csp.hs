@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-orphans #-} -- Data instances for mime types, needed by the csp quasi-quoter
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE OverloadedStrings  #-}
@@ -12,6 +13,7 @@ module Yesod.Csp (
   , cspWarnings
   , EscapedURI
   , escapeAndParseURI
+  , escapeAndParseAnyURI
   , escapedTextForNonce
   , nonce
   , getCspNonce
@@ -35,7 +37,6 @@ import           Data.List.NonEmpty
 import           Data.Text          (Text)
 import qualified Data.Text          as T
 import qualified Data.Text.Encoding as TE
-import           Data.Typeable      (Typeable)
 import           Network.URI
 import           System.Entropy     (getEntropy)
 import           Yesod.Core
@@ -116,9 +117,9 @@ insertAt n x xs =
 -- quasi-quoter can lift policies. Generic traversals (e.g. SYB's @everywhere@)
 -- can rewrite the strings inside them without escaping, so do not run them
 -- over a 'DirectiveList'.
-newtype EscapedURI = EscapedURI { uri :: URI } deriving (Eq, Data, Typeable)
+newtype EscapedURI = EscapedURI { uri :: URI } deriving (Eq, Data)
 
-newtype EscapedText = EscapedText { text :: String } deriving (Eq, Data, Typeable)
+newtype EscapedText = EscapedText { text :: String } deriving (Eq, Data)
 
 instance Show EscapedURI where
   show x = show (uri x)
@@ -133,9 +134,20 @@ notEscapable :: Char -> Bool
 notEscapable = not . flip elem toEscape
 
 -- | Escapes ';' ',' '\'' '*' and ' ', and parses to URI.
--- A leading @*.@ in the host is kept as a wildcard subdomain, e.g. @https://*.example.com@.
+-- Only @http@, @https@, @ws@ and @wss@ URIs with a host are accepted, so
+-- untrusted input cannot widen a policy to a whole scheme such as @https:@ or @data:@.
 escapeAndParseURI :: Text -> Maybe EscapedURI
-escapeAndParseURI t = fmap EscapedURI (wildcardHost <|> parse t)
+escapeAndParseURI t = escapeAndParseAnyURI t >>= \e ->
+  if uriScheme (uri e) `elem` ["http:", "https:", "ws:", "wss:"] && hasHost (uri e)
+    then Just e else Nothing
+  where hasHost = maybe False (not . null . uriRegName) . uriAuthority
+
+-- | Like 'escapeAndParseURI', but accepts any absolute URI, including
+-- scheme-only sources such as @blob:@ or @https:@. Use only for trusted input;
+-- the @csp@ quasi-quoter uses it for sources written in the policy.
+-- A leading @*.@ in the host is kept as a wildcard subdomain, e.g. @https://*.example.com@.
+escapeAndParseAnyURI :: Text -> Maybe EscapedURI
+escapeAndParseAnyURI t = fmap EscapedURI (wildcardHost <|> parse t)
   where parse = parseURI . escapeURIString notEscapable . T.unpack
         wildcardHost = do
           let (s, r) = T.breakOn "://*." t
@@ -176,10 +188,7 @@ directiveListToHeader :: DirectiveList -> Text
 directiveListToHeader = T.intercalate "; " . fmap textDirective
 
 w :: Text -> SourceList -> Text
-w = wrap
-
-wrap :: Text -> SourceList -> Text
-wrap k x = mconcat [k, " ", textSourceList x]
+w k x = mconcat [k, " ", textSourceList x]
 
 textSourceList :: SourceList -> Text
 textSourceList = T.unwords . Prelude.filter (not . T.null) . toList . filtered
@@ -188,14 +197,14 @@ textSourceList = T.unwords . Prelude.filter (not . T.null) . toList . filtered
 -- * and none should be alone if present
 filterOut :: SourceList -> SourceList
 filterOut x | Wildcard `elem` x = Wildcard :| []
-filterOut x | None `elem` x = None :| []
+            | None `elem` x = None :| []
             | otherwise = x
 
 -- | Represents a location from which assets may be loaded.
 data Source = -- | @*@. Any other source in the same list is dropped, so
               -- @Wildcard :| [UnsafeInline]@ renders as just @*@.
               Wildcard
-              -- | @'none'@. Any other source in the same list is dropped.
+              -- | @\'none\'@. Any other source in the same list is dropped.
               | None
               | Self
               | DataScheme
@@ -210,10 +219,10 @@ data Source = -- | @*@. Any other source in the same list is dropped, so
               -- | A base64 hash of an allowed inline script or style.
               | Hash HashAlgorithm Text
               -- | Used internally by the @csp@ quasi-quoter for antiquotes; renders as nothing.
-              | MetaSource Text deriving (Eq, Show, Data, Typeable)
+              | MetaSource Text deriving (Eq, Show, Data)
 
 -- | Algorithm of a 'Hash' source.
-data HashAlgorithm = Sha256 | Sha384 | Sha512 deriving (Eq, Show, Data, Typeable)
+data HashAlgorithm = Sha256 | Sha384 | Sha512 deriving (Eq, Show, Data)
 
 -- | A list of allowed sources for a directive.
 type SourceList = NonEmpty Source
@@ -285,7 +294,7 @@ data Directive = DefaultSrc SourceList
                  | RequireTrustedTypesForScript
                  -- | Allowed Trusted Types policy names, e.g. @[\"myPolicy\", \"'allow-duplicates'\"]@.
                  | TrustedTypes [Text]
-                 deriving (Eq, Show, Data, Typeable)
+                 deriving (Eq, Show, Data)
 
 
 -- | Configuration options for the sandbox.
@@ -302,7 +311,7 @@ data SandboxOptions = AllowForms
                       | AllowPresentation
                       | AllowStorageAccessByUserActivation
                       | AllowTopNavigationByUserActivation
-                      | AllowTopNavigationToCustomProtocols deriving (Eq, Show, Data, Typeable)
+                      | AllowTopNavigationToCustomProtocols deriving (Eq, Show, Data)
 
 textDirective :: Directive -> Text
 textDirective (DefaultSrc x) = w "default-src" x

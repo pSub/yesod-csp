@@ -13,6 +13,7 @@
 + Add `cspPolicyReportOnly` and `cspMiddlewareReportOnly` for `Content-Security-Policy-Report-Only`
 + Add `cspWarnings`, which lists risky combinations such as `data:` in `script-src`
 + `escapeAndParseURI` keeps a leading `*.` in the host, so wildcard subdomains such as `https://*.example.com` can be expressed
++ `escapeAndParseURI` now accepts only `http`, `https`, `ws` and `wss` URIs with a host, so untrusted input can no longer widen a policy to a whole scheme such as `https:` or `data:`. The new `escapeAndParseAnyURI` keeps the old behaviour for trusted input
 + Add `getCspNonce`, which returns a random nonce per request, and use it in the examples instead of a fixed nonce
 + Accept the standard quoted keywords `'unsafe-inline'`, `'unsafe-eval'` and `'strict-dynamic'` in the `csp` quasi-quoter
 + Stop rendering a trailing space for `MetaSource`
