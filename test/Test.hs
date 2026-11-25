@@ -5,6 +5,7 @@
 {-# LANGUAGE TypeFamilies          #-}
 
 import           Codec.MIME.Parse          (parseMIMEType)
+import           Codec.MIME.Type           (MIMEType (..), Type (..))
 import           Data.Attoparsec.Text
 import qualified Data.ByteString.Lazy      as BL
 import           Data.Text                 (Text)
@@ -21,6 +22,7 @@ data Test = Test
 mkYesod "Test" [parseRoutes|
 / HomeR GET
 /nocsp NoCspR GET
+/reportonly ReportOnlyR GET
 /nonce NonceR GET
 |]
 
@@ -29,6 +31,11 @@ instance Yesod Test
 getHomeR :: Handler Html
 getHomeR = do
   cspPolicy [ScriptSrc (Self :| []), StyleSrc (Https :| [Self])]
+  defaultLayout [whamlet|hello|]
+
+getReportOnlyR :: Handler Html
+getReportOnlyR = do
+  cspPolicyReportOnly [ScriptSrc (Self :| [])]
   defaultLayout [whamlet|hello|]
 
 getNoCspR :: Handler Html
@@ -56,6 +63,27 @@ tests = yesodSpec Test $ do
       let dom = fromJust $ escapeAndParseURI "https://foo.com/bar *"
           header = getCspPolicy [ScriptSrc (Host dom :| [])]
       assertEq "foo.com script-src" header "script-src https://foo.com/bar%20%2A"
+    yit "works with wildcard subdomains" $ do
+      let header = getCspPolicy [ScriptSrc (Host (fromJust $ escapeAndParseURI "https://*.foo.com:443/x") :| [])]
+      assertEq "wildcard subdomain" header "script-src https://*.foo.com:443/x"
+      assertEq "wildcard only at host start" (show <$> escapeAndParseURI "https://foo.com/a://*.b") (Just "https://foo.com/a://%2A.b")
+      assertEq "bare wildcard host stays escaped" (show <$> escapeAndParseURI "https://*") (Just "https://%2A")
+      assertEq "wildcard in quasi-quoter" [csp|script-src https://*.foo.com|] [ScriptSrc (Host (fromJust $ escapeAndParseURI "https://*.foo.com") :| [])]
+    yit "works with CSP Level 3 sources" $ do
+      let header = getCspPolicy [ScriptSrc (Hash Sha256 "abc+/=" :| [UnsafeHashes, WasmUnsafeEval])]
+      assertEq "level 3 sources" header "script-src 'sha256-abc+/=' 'unsafe-hashes' 'wasm-unsafe-eval'"
+      assertEq "hash is filtered" (textSource (Hash Sha512 "x'; script-src *")) "'sha512-xscript-src'"
+    yit "works with upgrade-insecure-requests and trusted types" $ do
+      let header = getCspPolicy [UpgradeInsecureRequests, RequireTrustedTypesForScript, TrustedTypes ["foo", "'allow-duplicates'", "x; y"]]
+      assertEq "trusted types" header "upgrade-insecure-requests; require-trusted-types-for 'script'; trusted-types foo 'allow-duplicates' xy"
+      assertEq "no policies" (getCspPolicy [TrustedTypes []]) "trusted-types"
+    yit "warns about risky combinations" $ do
+      assertEq "data: in script-src" (cspWarnings [ScriptSrc (Self :| [DataScheme])]) ["script-src: data: allows scripts from data: URIs"]
+      assertEq "default-src counts when no script-src" (Prelude.length (cspWarnings [DefaultSrc (UnsafeInline :| [])])) 1
+      assertEq "default-src ignored with script-src" (cspWarnings [DefaultSrc (UnsafeInline :| []), ScriptSrc (Self :| [])]) []
+      assertEq "unsafe-inline with nonce" (cspWarnings [ScriptSrc (UnsafeInline :| [nonce "abc"])]) []
+      assertEq "sandbox" (Prelude.length (cspWarnings [Sandbox [AllowScripts, AllowSameOrigin]])) 1
+      assertEq "safe policy" (cspWarnings [ScriptSrc (Self :| []), Sandbox [AllowScripts]]) []
     yit "escapes commas in domains" $ do
       let dom = fromJust $ escapeAndParseURI "https://foo.com,script-src"
           header = getCspPolicy [ScriptSrc (Host dom :| [])]
@@ -95,6 +123,14 @@ tests = yesodSpec Test $ do
       let dom = pure $ fromJust $ parseMIMEType "text/plain"
           header = getCspPolicy [PluginTypes dom]
       assertEq "plugin-types" header "plugin-types text/plain"
+    yit "plugin-types drops params and cannot inject directives" $ do
+      let evil = Type (Other "x" "y; script-src *\r\nX-Evil: injected") []
+          withParams = fromJust $ parseMIMEType "text/plain; charset=utf-8"
+          header = getCspPolicy [PluginTypes (evil :| [withParams])]
+      assertEq "plugin-types" header "plugin-types x/yscript-srcX-Evilinjected text/plain"
+    yit "works with base-uri" $ do
+      let header = getCspPolicy [BaseUri (None :| [])]
+      assertEq "base-uri" header "base-uri 'none'"
     yit "works with worker-src" $ do
       let header = getCspPolicy [WorkerSrc (Self :| [])]
       assertEq "worker-src" header "worker-src 'self'"
@@ -113,10 +149,13 @@ tests = yesodSpec Test $ do
     yit "strips policy separators and line breaks from report-to" $ do
       let header = getCspPolicy [ReportTo "g,\r\nX-Injected: yes"]
       assertEq "report-to separators" header "report-to gX-Injectedyes"
-  ydescribe "Headers" $
+  ydescribe "Headers" $ do
     yit "get set" $ do
       get HomeR
       assertHeader "Content-Security-Policy" "script-src 'self'; style-src https: 'self'"
+    yit "report-only" $ do
+      get ReportOnlyR
+      assertHeader "Content-Security-Policy-Report-Only" "script-src 'self'"
   ydescribe "Nonces" $
     yit "are fresh per request and match the header" $ do
       let responseNonce = withResponse $ \r -> do
@@ -156,6 +195,10 @@ tests = yesodSpec Test $ do
       assertEq "worker-src self" (parseOnly withSourceList "worker-src 'self'") (Right $ WorkerSrc (Self :| []))
       assertEq "manifest-src self" (parseOnly withSourceList "manifest-src 'self'") (Right $ ManifestSrc (Self :| []))
       assertEq "prefetch-src self" (parseOnly withSourceList "prefetch-src 'self'") (Right $ PrefetchSrc (Self :| []))
+      assertEq "base-uri self" [csp|base-uri 'self'|] [BaseUri (Self :| [])]
+      assertEq "level 3 sources th" [csp|script-src 'sha384-ab+c=' 'unsafe-hashes' 'wasm-unsafe-eval'|] [ScriptSrc (Hash Sha384 "ab+c=" :| [UnsafeHashes, WasmUnsafeEval])]
+      assertEq "level 3 directives th" [csp|upgrade-insecure-requests; require-trusted-types-for 'script'; trusted-types foo 'allow-duplicates'|] [UpgradeInsecureRequests, RequireTrustedTypesForScript, TrustedTypes ["foo", "'allow-duplicates'"]]
+      assertEq "sandbox prefixes" (parseOnly sandbox "sandbox allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation allow-popups") (Right $ Sandbox [AllowPopupsToEscapeSandbox, AllowTopNavigationByUserActivation, AllowPopups])
       assertEq "sandbox allow-forms allow-scripts" (parseOnly sandbox "sandbox allow-forms allow-scripts") (Right $ Sandbox [AllowForms, AllowScripts])
     yit "works with lists" $ do
       let resultHttps = [ImgSrc $ Self :| [Https], ScriptSrc $ Host (fromJust $ escapeAndParseURI "https://foo.com") :| []]
@@ -191,6 +234,7 @@ middlewareTest = yesodSpecApp Test getApp $ do
     yit "works" $ do
       get NoCspR
       assertHeader "Content-Security-Policy" "frame-ancestors 'self'"
+      assertHeader "Content-Security-Policy-Report-Only" "upgrade-insecure-requests"
   where
-    getApp = cspMiddleware [FrameAncestors (Self :| [])] <$>
+    getApp = cspMiddleware [FrameAncestors (Self :| [])] . cspMiddlewareReportOnly [UpgradeInsecureRequests] <$>
              toWaiAppPlain Test

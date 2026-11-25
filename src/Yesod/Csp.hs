@@ -6,8 +6,11 @@
 -- This helps reduce the risk of exposure to XSS and bad assets.
 module Yesod.Csp (
   cspPolicy
+  , cspPolicyReportOnly
   , getCspPolicy
   , cspMiddleware
+  , cspMiddlewareReportOnly
+  , cspWarnings
   , EscapedURI
   , escapeAndParseURI
   , escapeAndParseAnyURI
@@ -18,11 +21,14 @@ module Yesod.Csp (
   , Directive(..)
   , SourceList
   , Source(..)
+  , HashAlgorithm(..)
   , SandboxOptions(..)
   , textSource
   ) where
 
 import           Codec.MIME.Type as Mime
+import           Control.Applicative ((<|>))
+import           Control.Monad      (guard)
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.CaseInsensitive as CI
 import           Data.Char          (isAlphaNum, isAscii)
@@ -50,8 +56,14 @@ import           Network.Wai        (Middleware, mapResponseHeaders,
 cspPolicy :: (MonadHandler m) => DirectiveList -> m ()
 cspPolicy = addHeader cspHeaderName . directiveListToHeader
 
-cspHeaderName :: Text
+-- | Like 'cspPolicy', but adds a "Content-Security-Policy-Report-Only" header:
+-- violations are only reported, not blocked.
+cspPolicyReportOnly :: (MonadHandler m) => DirectiveList -> m ()
+cspPolicyReportOnly = addHeader cspReportOnlyHeaderName . directiveListToHeader
+
+cspHeaderName, cspReportOnlyHeaderName :: Text
 cspHeaderName = "Content-Security-Policy"
+cspReportOnlyHeaderName = "Content-Security-Policy-Report-Only"
 
 -- | Returns a generated Content-Security-Policy header.
 getCspPolicy :: DirectiveList -> Text
@@ -63,17 +75,48 @@ getCspPolicy = directiveListToHeader
 -- A header set by a handler with 'cspPolicy' is kept, not replaced. The
 -- browser then enforces both policies, so a resource must be allowed by each.
 cspMiddleware :: DirectiveList -> Middleware
-cspMiddleware = addHeaderMiddleware . mkHeader . directiveListToHeader
+cspMiddleware = headerMiddleware cspHeaderName
+
+-- | Like 'cspMiddleware', but adds a "Content-Security-Policy-Report-Only" header.
+cspMiddlewareReportOnly :: DirectiveList -> Middleware
+cspMiddlewareReportOnly = headerMiddleware cspReportOnlyHeaderName
+
+headerMiddleware :: Text -> DirectiveList -> Middleware
+headerMiddleware name = addHeaderMiddleware . mkHeader . directiveListToHeader
   where
     addHeaderMiddleware = modifyResponse . mapResponseHeaders . insertAt 5
-    mkHeader dltext = (cspHeaderNameBS, TE.encodeUtf8 dltext)
-    cspHeaderNameBS = CI.mk $ TE.encodeUtf8 cspHeaderName
+    mkHeader dltext = (CI.mk $ TE.encodeUtf8 name, TE.encodeUtf8 dltext)
+
+-- | Lists risky combinations in a policy that are allowed but weaken it,
+-- e.g. @data:@ in @script-src@. Returns an empty list if none are found.
+cspWarnings :: DirectiveList -> [Text]
+cspWarnings ds = Prelude.concatMap warn ds
+  where
+    warn (ScriptSrc x) = scriptWarnings "script-src" x
+    warn (DefaultSrc x) | not (Prelude.any isScriptSrc ds) = scriptWarnings "default-src" x
+    warn (Sandbox o) | AllowScripts `elem` o && AllowSameOrigin `elem` o =
+      ["sandbox: allow-scripts with allow-same-origin lets the framed page remove its own sandbox"]
+    warn _ = []
+    scriptWarnings k x =
+      [k <> ": data: allows scripts from data: URIs" | DataScheme `elem` x]
+      ++ [k <> ": 'unsafe-inline' without a nonce or hash allows inline scripts" | UnsafeInline `elem` x, not (Prelude.any isNonceOrHash x)]
+    isScriptSrc (ScriptSrc _) = True
+    isScriptSrc _ = False
+    isNonceOrHash (Nonce _) = True
+    isNonceOrHash (Hash _ _) = True
+    isNonceOrHash _ = False
 
 insertAt :: Int -> a -> [a] -> [a]
 insertAt n x xs =
   let (h, t) = Prelude.splitAt n xs
   in h ++ x : t
 
+-- | A URI that is safe to put into a CSP header. Build it with 'escapeAndParseURI'.
+--
+-- The 'Data' instances of this type and of nonces exist only so the @csp@
+-- quasi-quoter can lift policies. Generic traversals (e.g. SYB's @everywhere@)
+-- can rewrite the strings inside them without escaping, so do not run them
+-- over a 'DirectiveList'.
 newtype EscapedURI = EscapedURI { uri :: URI } deriving (Eq, Data)
 
 newtype EscapedText = EscapedText { text :: String } deriving (Eq, Data)
@@ -102,8 +145,17 @@ escapeAndParseURI t = escapeAndParseAnyURI t >>= \e ->
 -- | Like 'escapeAndParseURI', but accepts any absolute URI, including
 -- scheme-only sources such as @blob:@ or @https:@. Use only for trusted input;
 -- the @csp@ quasi-quoter uses it for sources written in the policy.
+-- A leading @*.@ in the host is kept as a wildcard subdomain, e.g. @https://*.example.com@.
 escapeAndParseAnyURI :: Text -> Maybe EscapedURI
-escapeAndParseAnyURI = fmap EscapedURI . parseURI . escapeURIString notEscapable . T.unpack
+escapeAndParseAnyURI t = fmap EscapedURI (wildcardHost <|> parse t)
+  where parse = parseURI . escapeURIString notEscapable . T.unpack
+        wildcardHost = do
+          let (s, r) = T.breakOn "://*." t
+          u <- parse (s <> "://" <> T.drop 5 r)
+          a <- uriAuthority u
+          -- the "://*." must directly follow the scheme, not appear later in the URI
+          guard (uriScheme u == T.unpack s ++ ":" && not (null (uriRegName a)))
+          return u { uriAuthority = Just a { uriRegName = "*." ++ uriRegName a } }
 
 -- | Escapes Text to be a valid nonce value by keeping only base64 and
 -- base64url characters (and @=@ padding); everything else is dropped.
@@ -161,9 +213,16 @@ data Source = -- | @*@. Any other source in the same list is dropped, so
               | UnsafeInline
               | UnsafeEval
               | StrictDynamic
+              | UnsafeHashes
+              | WasmUnsafeEval
               | Nonce EscapedText
+              -- | A base64 hash of an allowed inline script or style.
+              | Hash HashAlgorithm Text
               -- | Used internally by the @csp@ quasi-quoter for antiquotes; renders as nothing.
               | MetaSource Text deriving (Eq, Show, Data)
+
+-- | Algorithm of a 'Hash' source.
+data HashAlgorithm = Sha256 | Sha384 | Sha512 deriving (Eq, Show, Data)
 
 -- | A list of allowed sources for a directive.
 type SourceList = NonEmpty Source
@@ -178,6 +237,14 @@ textSource Https = "https:"
 textSource UnsafeInline = "'unsafe-inline'"
 textSource UnsafeEval = "'unsafe-eval'"
 textSource StrictDynamic = "'strict-dynamic'"
+textSource UnsafeHashes = "'unsafe-hashes'"
+textSource WasmUnsafeEval = "'wasm-unsafe-eval'"
+textSource (Hash a h) = mconcat ["'", alg a, "-", T.filter isBase64Char h, "'"]
+  where alg Sha256 = "sha256"
+        alg Sha384 = "sha384"
+        alg Sha512 = "sha512"
+        -- filtered on render, so no hash value can inject quotes or directives
+        isBase64Char c = isAscii c && (isAlphaNum c || c `elem` ("+/=-_" :: String))
 textSource (MetaSource _) = ""
 textSource (Nonce x) = (T.pack . show) x
 
@@ -210,7 +277,7 @@ data Directive = DefaultSrc SourceList
                  | FrameAncestors SourceList
                  | ChildSrc SourceList
                  | FormAction SourceList
-                 | BaseUri EscapedURI
+                 | BaseUri SourceList
                  -- | Removed from the CSP specification and ignored by current browsers.
                  -- Use @ObjectSrc (None :| [])@ to block plugins instead.
                  | PluginTypes MimeTypeList
@@ -222,6 +289,11 @@ data Directive = DefaultSrc SourceList
                  -- | Names a reporting group defined by the @Reporting-Endpoints@ (or @Report-To@) response header.
                  -- Characters that are not valid in an HTTP token are dropped when rendering.
                  | ReportTo Text
+                 | UpgradeInsecureRequests
+                 -- | @require-trusted-types-for 'script'@
+                 | RequireTrustedTypesForScript
+                 -- | Allowed Trusted Types policy names, e.g. @[\"myPolicy\", \"'allow-duplicates'\"]@.
+                 | TrustedTypes [Text]
                  deriving (Eq, Show, Data)
 
 
@@ -229,7 +301,17 @@ data Directive = DefaultSrc SourceList
 data SandboxOptions = AllowForms
                       | AllowScripts
                       | AllowSameOrigin
-                      | AllowTopNavigation deriving (Eq, Show, Data)
+                      | AllowTopNavigation
+                      | AllowDownloads
+                      | AllowModals
+                      | AllowOrientationLock
+                      | AllowPointerLock
+                      | AllowPopups
+                      | AllowPopupsToEscapeSandbox
+                      | AllowPresentation
+                      | AllowStorageAccessByUserActivation
+                      | AllowTopNavigationByUserActivation
+                      | AllowTopNavigationToCustomProtocols deriving (Eq, Show, Data)
 
 textDirective :: Directive -> Text
 textDirective (DefaultSrc x) = w "default-src" x
@@ -248,14 +330,33 @@ textDirective (Sandbox s) = mconcat ["sandbox ", T.unwords . fmap textSandbox $ 
         textSandbox AllowScripts = "allow-scripts"
         textSandbox AllowSameOrigin = "allow-same-origin"
         textSandbox AllowTopNavigation = "allow-top-navigation"
+        textSandbox AllowDownloads = "allow-downloads"
+        textSandbox AllowModals = "allow-modals"
+        textSandbox AllowOrientationLock = "allow-orientation-lock"
+        textSandbox AllowPointerLock = "allow-pointer-lock"
+        textSandbox AllowPopups = "allow-popups"
+        textSandbox AllowPopupsToEscapeSandbox = "allow-popups-to-escape-sandbox"
+        textSandbox AllowPresentation = "allow-presentation"
+        textSandbox AllowStorageAccessByUserActivation = "allow-storage-access-by-user-activation"
+        textSandbox AllowTopNavigationByUserActivation = "allow-top-navigation-by-user-activation"
+        textSandbox AllowTopNavigationToCustomProtocols = "allow-top-navigation-to-custom-protocols"
 textDirective (FrameAncestors x) =  w "frame-ancestors" x
 textDirective (ChildSrc x) = w "child-src" x
 textDirective (FormAction x) = w "form-action" x
-textDirective (BaseUri t) = mconcat ["base-uri ", (T.pack . show) t]
-textDirective (PluginTypes t) = mconcat ["plugin-types ", (T.unwords . fmap Mime.showType . toList) t]
+textDirective (BaseUri x) = w "base-uri" x
+textDirective (PluginTypes t) = mconcat ["plugin-types ", (T.unwords . fmap textMimeType . toList) t]
+  -- only type/subtype, restricted to RFC 6838 name chars, so ';', spaces and CR/LF cannot inject directives
+  where textMimeType = T.filter isMimeChar . Mime.showMIMEType . Mime.mimeType
+        isMimeChar c = isAscii c && (isAlphaNum c || c `elem` ("!#$&-^_.+/" :: String))
 textDirective (WorkerSrc x) = w "worker-src" x
 textDirective (ManifestSrc x) = w "manifest-src" x
 textDirective (PrefetchSrc x) = w "prefetch-src" x
 textDirective (ReportTo t) = mconcat ["report-to ", T.filter isTokenChar t]
   -- RFC 9110 token; keeps ';', ',', whitespace and CR/LF from injecting directives or policies
   where isTokenChar c = (isAscii c && isAlphaNum c) || c `elem` ("!#$%&'*+-.^_`|~" :: String)
+textDirective UpgradeInsecureRequests = "upgrade-insecure-requests"
+textDirective RequireTrustedTypesForScript = "require-trusted-types-for 'script'"
+textDirective (TrustedTypes []) = "trusted-types"
+textDirective (TrustedTypes ns) = T.unwords ("trusted-types" : fmap (T.filter isPolicyChar) ns)
+  -- policy-name chars plus '*' and quotes for keywords; no ';', ',' or whitespace
+  where isPolicyChar c = isAscii c && (isAlphaNum c || c `elem` ("-#=_/@.%*'" :: String))

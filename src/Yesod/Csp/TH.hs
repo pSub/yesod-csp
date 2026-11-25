@@ -8,6 +8,9 @@ module Yesod.Csp.TH (
     , pluginTypes
     , sandbox
     , sandboxOptions
+    , upgradeInsecureRequests
+    , requireTrustedTypesFor
+    , trustedTypes
     , directive
     , csp
   ) where
@@ -54,6 +57,9 @@ source = wildcard
          <|> self
          <|> dataScheme
          <|> https
+         <|> unsafeHashes
+         <|> wasmUnsafeEval
+         <|> hash
          <|> host
          <|> unsafeInline
          <|> unsafeEval
@@ -72,6 +78,15 @@ source = wildcard
           n <- takeTill (== '\'')
           _ <- char '\''
           return $ nonce n
+        unsafeHashes = string "'unsafe-hashes'" *> pure UnsafeHashes
+        wasmUnsafeEval = string "'wasm-unsafe-eval'" *> pure WasmUnsafeEval
+        hash = do
+          _ <- char '\''
+          a <- (string "sha256" *> pure Sha256) <|> (string "sha384" *> pure Sha384) <|> (string "sha512" *> pure Sha512)
+          _ <- char '-'
+          h <- takeTill (== '\'')
+          _ <- char '\''
+          return $ Hash a h
         host :: Parser Source
         host = do
           u <- takeTill separated
@@ -111,6 +126,7 @@ withSourceList = defaultSrc
                  <|> workerSrc
                  <|> manifestSrc
                  <|> prefetchSrc
+                 <|> baseUri
   where defaultSrc = d "default-src" DefaultSrc
         scriptSrc = d "script-src" ScriptSrc
         styleSrc = d "style-src" StyleSrc
@@ -126,6 +142,7 @@ withSourceList = defaultSrc
         workerSrc = d "worker-src" WorkerSrc
         manifestSrc = d "manifest-src" ManifestSrc
         prefetchSrc = d "prefetch-src" PrefetchSrc
+        baseUri = d "base-uri" BaseUri
         d x y = string x >> skipSpace >> y <$> slist
         slist = (:|) <$> source <*> many (char ' ' *> source)
 
@@ -147,15 +164,6 @@ reportTo = do
     then fail "reportTo" -- n.b. compile time error
     else return $ ReportTo g
 
-baseUri :: Parser Directive
-baseUri = do
-  _ <- string "base-uri"
-  skipSpace
-  u <- takeTill separated
-  case escapeAndParseAnyURI u of
-    Nothing -> fail "baseUri" -- n.b. compile time error
-    Just uri -> return $ BaseUri uri
-
 pluginTypes :: Parser Directive
 pluginTypes = do
   _ <- string "plugin-types"
@@ -173,18 +181,41 @@ sandbox = do
   return $ Sandbox x
 
 sandboxOptions :: Parser SandboxOptions
-sandboxOptions = allowForms
-                 <|> allowScripts
-                 <|> allowSameOrigin
-                 <|> allowTopNavigation
-  where allowForms = string "allow-forms" *> pure AllowForms
-        allowScripts = string "allow-scripts" *> pure AllowScripts
-        allowSameOrigin = string "allow-same-origin" *> pure AllowSameOrigin
-        allowTopNavigation = string "allow-top-navigation" *> pure AllowTopNavigation
+-- longer names first, where one is a prefix of another
+sandboxOptions = choice $ fmap (\(n, o) -> string n *> pure o)
+  [ ("allow-forms", AllowForms)
+  , ("allow-scripts", AllowScripts)
+  , ("allow-same-origin", AllowSameOrigin)
+  , ("allow-top-navigation-by-user-activation", AllowTopNavigationByUserActivation)
+  , ("allow-top-navigation-to-custom-protocols", AllowTopNavigationToCustomProtocols)
+  , ("allow-top-navigation", AllowTopNavigation)
+  , ("allow-downloads", AllowDownloads)
+  , ("allow-modals", AllowModals)
+  , ("allow-orientation-lock", AllowOrientationLock)
+  , ("allow-pointer-lock", AllowPointerLock)
+  , ("allow-popups-to-escape-sandbox", AllowPopupsToEscapeSandbox)
+  , ("allow-popups", AllowPopups)
+  , ("allow-presentation", AllowPresentation)
+  , ("allow-storage-access-by-user-activation", AllowStorageAccessByUserActivation)
+  ]
+
+upgradeInsecureRequests :: Parser Directive
+upgradeInsecureRequests = string "upgrade-insecure-requests" *> pure UpgradeInsecureRequests
+
+requireTrustedTypesFor :: Parser Directive
+requireTrustedTypesFor = string "require-trusted-types-for" *> skipSpace *> string "'script'" *> pure RequireTrustedTypesForScript
+
+trustedTypes :: Parser Directive
+trustedTypes = do
+  _ <- string "trusted-types"
+  skipSpace
+  ns <- sepBy (takeWhile1 (not . separated)) (char ' ')
+  return $ TrustedTypes ns
 
 separator :: Parser ()
 separator = char ';' *> skipSpace
 
 directive :: Parser DirectiveList
 directive = sepBy (skipSpace *> d) separator <* (skipSpace *> endOfInput)
-  where d = withSourceList <|> reportUri <|> reportTo <|> baseUri <|> pluginTypes <|> sandbox
+  where d = withSourceList <|> reportUri <|> reportTo <|> pluginTypes <|> sandbox
+            <|> upgradeInsecureRequests <|> requireTrustedTypesFor <|> trustedTypes
