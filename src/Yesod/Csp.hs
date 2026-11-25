@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-orphans #-} -- Data instances for mime types, needed by the csp quasi-quoter
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE OverloadedStrings  #-}
@@ -30,7 +31,6 @@ import           Data.List.NonEmpty
 import           Data.Text          (Text)
 import qualified Data.Text          as T
 import qualified Data.Text.Encoding as TE
-import           Data.Typeable      (Typeable)
 import           Network.URI
 import           System.Entropy     (getEntropy)
 import           Yesod.Core
@@ -74,9 +74,9 @@ insertAt n x xs =
   let (h, t) = Prelude.splitAt n xs
   in h ++ x : t
 
-newtype EscapedURI = EscapedURI { uri :: URI } deriving (Eq, Data, Typeable)
+newtype EscapedURI = EscapedURI { uri :: URI } deriving (Eq, Data)
 
-newtype EscapedText = EscapedText { text :: String } deriving (Eq, Data, Typeable)
+newtype EscapedText = EscapedText { text :: String } deriving (Eq, Data)
 
 instance Show EscapedURI where
   show x = show (uri x)
@@ -136,10 +136,7 @@ directiveListToHeader :: DirectiveList -> Text
 directiveListToHeader = T.intercalate "; " . fmap textDirective
 
 w :: Text -> SourceList -> Text
-w = wrap
-
-wrap :: Text -> SourceList -> Text
-wrap k x = mconcat [k, " ", textSourceList x]
+w k x = mconcat [k, " ", textSourceList x]
 
 textSourceList :: SourceList -> Text
 textSourceList = T.unwords . Prelude.filter (not . T.null) . toList . filtered
@@ -148,14 +145,14 @@ textSourceList = T.unwords . Prelude.filter (not . T.null) . toList . filtered
 -- * and none should be alone if present
 filterOut :: SourceList -> SourceList
 filterOut x | Wildcard `elem` x = Wildcard :| []
-filterOut x | None `elem` x = None :| []
+            | None `elem` x = None :| []
             | otherwise = x
 
 -- | Represents a location from which assets may be loaded.
 data Source = -- | @*@. Any other source in the same list is dropped, so
               -- @Wildcard :| [UnsafeInline]@ renders as just @*@.
               Wildcard
-              -- | @'none'@. Any other source in the same list is dropped.
+              -- | @\'none\'@. Any other source in the same list is dropped.
               | None
               | Self
               | DataScheme
@@ -166,7 +163,7 @@ data Source = -- | @*@. Any other source in the same list is dropped, so
               | StrictDynamic
               | Nonce EscapedText
               -- | Used internally by the @csp@ quasi-quoter for antiquotes; renders as nothing.
-              | MetaSource Text deriving (Eq, Show, Data, Typeable)
+              | MetaSource Text deriving (Eq, Show, Data)
 
 -- | A list of allowed sources for a directive.
 type SourceList = NonEmpty Source
@@ -225,14 +222,14 @@ data Directive = DefaultSrc SourceList
                  -- | Names a reporting group defined by the @Reporting-Endpoints@ (or @Report-To@) response header.
                  -- Characters that are not valid in an HTTP token are dropped when rendering.
                  | ReportTo Text
-                 deriving (Eq, Show, Data, Typeable)
+                 deriving (Eq, Show, Data)
 
 
 -- | Configuration options for the sandbox.
 data SandboxOptions = AllowForms
                       | AllowScripts
                       | AllowSameOrigin
-                      | AllowTopNavigation deriving (Eq, Show, Data, Typeable)
+                      | AllowTopNavigation deriving (Eq, Show, Data)
 
 textDirective :: Directive -> Text
 textDirective (DefaultSrc x) = w "default-src" x
